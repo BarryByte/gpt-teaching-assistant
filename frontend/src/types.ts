@@ -11,6 +11,7 @@ export interface Conversation {
   title: string;
   lastMessage: string;
   timestamp: string; // ISO string format
+  conversationId: string;
   messages: Message[];
 }
 

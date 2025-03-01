@@ -1,18 +1,18 @@
 // MainPage.tsx
-import React, { useEffect, useRef } from "react";
-import { Send, Paperclip, MessageSquare } from "lucide-react";
-import ChatMessage from "./ChatMessage"; // Component to render individual messages
+import React, { useEffect, useRef, useState } from "react"; // Import useState
+import { Send, MessageSquare } from "lucide-react";
+import ChatMessage from "./ChatMessage";
 import { Message } from "../types";
 import { generateUniqueId, getOrCreateUserId } from "../utils";
-import { fetchChatHistory, chatWithAI, fetchProblem, fetchProblemSummary } from "../services/api";
-import axios from "axios";
+import { chatWithAI } from "../services/api"; // Removed fetchChatHistory, fetchProblem, fetchProblemSummary and axios imports
+import { ChatRequest, ChatResponse } from "../services/api"; // Import the ChatRequest interface
 
-// Define the props required by MainPage
+
+
+// Define the props required by MainPage, including conversationId
 interface MainPageProps {
   messages: Message[];
   setMessages: React.Dispatch<React.SetStateAction<Message[]>>;
-  inputMessage: string;
-  setInputMessage: React.Dispatch<React.SetStateAction<string>>;
   isTyping: boolean;
   setIsTyping: React.Dispatch<React.SetStateAction<boolean>>;
   problemSlug: string | null;
@@ -22,13 +22,12 @@ interface MainPageProps {
   code: string;
   setCode: React.Dispatch<React.SetStateAction<string>>;
   handleProblemSelect: (slug: string) => Promise<void>;
+  conversationId: string | undefined; // Add conversationId to props, optional as it might be undefined initially
 }
 
 function MainPage({
   messages,
   setMessages,
-  inputMessage,
-  setInputMessage,
   isTyping,
   setIsTyping,
   problemSlug,
@@ -38,132 +37,143 @@ function MainPage({
   code,
   setCode,
   handleProblemSelect,
+  conversationId, // Receive conversationId as prop
 }: MainPageProps) {
   // Refs for auto-scrolling, file input, and textarea resizing
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
+  // Local state for input message - now managed in MainPage
+  const [inputMessage, setInputMessage] = useState<string>("");
+
+
   // Scroll to the bottom whenever messages update
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
   // Auto-resize textarea based on its content
   useEffect(() => {
-    if (textareaRef.current) {
-      textareaRef.current.style.height = "auto";
-      textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 160)}px`;
-    }
+      if (textareaRef.current) {
+          textareaRef.current.style.height = "auto";
+          textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 160)}px`;
+      }
   }, [inputMessage]);
 
   // Send chat message to backend and return the response
   const sendChatMessage = async (
-    question: string,
-    problemSlug: string,
-    userId: string
-  ) => {
-    try {
-      const response = await chatWithAI(question, problemSlug, userId);
-      return response;
-    } catch (error) {
-      console.error("Failed to send chat message:", error);
-      throw error;
-    }
+      question: string,
+      problemSlug: string,
+      userId: string,
+      conversationId: string // Accept conversationId
+  ): Promise<ChatResponse> => {
+      try {
+          // Create ChatRequest object with conversationId
+          const chatRequest: ChatRequest = {
+              question: question,
+              problem_slug: problemSlug,
+              user_id: userId,
+              conversation_id: conversationId, // Include conversationId in request
+          };
+          const response = await chatWithAI(chatRequest); // Pass ChatRequest object
+          return response;
+      } catch (error: any) { // Type error as 'any' for error
+          console.error("Failed to send chat message:", error);
+          throw error;
+      }
   };
 
   // Handle sending a message
   const handleSendMessage = async () => {
-    if (inputMessage.trim() === "") return;
-
-    // Retrieve (or generate) the current user ID
-    const currentUser = getOrCreateUserId();
-
-    // Create a new message from the user
-    const newUserMessage: Message = {
-      id: generateUniqueId(),
-      content: inputMessage,
-      sender: "user",
-      timestamp: new Date().toISOString(),
-      read: true,
-    };
-
-    // Update the state with the new user message and clear input
-    setMessages((prev) => [...prev, newUserMessage]);
-    setInputMessage("");
-
-    setIsTyping(true);
-    try {
-      if (problemSlug) {
-        // Send message to backend and get AI response
-        const response = await sendChatMessage(inputMessage, problemSlug, currentUser);
-
-        // Create an AI message from the response
-        const aiResponse: Message = {
-          id: generateUniqueId(),
-          content: response.response,
-          sender: "ai",
-          timestamp: new Date().toISOString(),
-          read: false,
-        };
-
-        setIsTyping(false);
-        setMessages((prev) => [...prev, aiResponse]);
-
-        // If response contains a code example, extract it
-        if (response.response.includes("Code Example")) {
-          const codeStart = response.response.indexOf("```python");
-          if (codeStart !== -1) {
-            const codeEnd = response.response.indexOf("```", codeStart + 3);
-            if (codeEnd !== -1) {
-              setCode(response.response.substring(codeStart + 9, codeEnd));
-            }
-          }
-        } else if (response.response.includes("Hint")) {
-          // If response includes a hint, add it to the hints list
-          setHints((prevHints) => [...prevHints, response.response]);
-        }
-
-        // Update chat history in the backend using current user ID
-        try {
-          await axios.post("/chat", {
-            question: inputMessage,
-            problem_slug: problemSlug,
-            user_id: currentUser,
-          });
-        } catch (historyUpdateError) {
-          console.error("Failed to update chat history:", historyUpdateError);
-        }
-      } else {
-        setIsTyping(false);
-        alert("Please select a problem first");
+      if (inputMessage.trim() === "") return;
+      if (!problemSlug) {
+          // Replace alert with a more user-friendly notification (e.g., set an error state and display a message)
+          alert("Please select a problem first."); // Replaced alert with alert for now, can be improved with better UI
+          return;
       }
-    } catch (error) {
-      console.error("Failed to send message:", error);
-      setIsTyping(false);
-    }
+      if (!conversationId) {
+          console.error("Conversation ID is missing!"); // Log error if conversationId is missing
+          return; // Or handle error appropriately, maybe alert user
+      }
+
+
+      // Retrieve (or generate) the current user ID
+      const currentUser = getOrCreateUserId();
+
+      // Create a new user message
+      const newUserMessage: Message = {
+          id: generateUniqueId(),
+          content: inputMessage,
+          sender: "user",
+          timestamp: new Date().toISOString(),
+          read: true,
+      };
+
+      // Update the state with the new user message and clear input
+      setMessages((prev) => [...prev, newUserMessage]);
+      setInputMessage("");
+
+      setIsTyping(true);
+      try {
+          // Send message to backend and get AI response - Now passing conversationId
+          const response = await sendChatMessage(inputMessage, problemSlug, currentUser, conversationId);
+
+          // Create an AI message from the response
+          const aiResponse: Message = {
+              id: generateUniqueId(),
+              content: response.response,
+              sender: "ai",
+              timestamp: new Date().toISOString(),
+              read: false,
+          };
+
+          setIsTyping(false);
+          setMessages((prev) => [...prev, aiResponse]);
+
+          // If response contains a code example, extract it
+          if (response.response.includes("Code Example")) {
+              const codeStart = response.response.indexOf("```python");
+              if (codeStart !== -1) {
+                  const codeEnd = response.response.indexOf("```", codeStart + 3);
+                  if (codeEnd !== -1) {
+                      setCode(response.response.substring(codeStart + 9, codeEnd));
+                  }
+              }
+          } else if (response.response.includes("Hint")) {
+              // If response includes a hint, add it to the hints list
+              setHints((prevHints) => [...prevHints, response.response]);
+          }
+
+
+      } catch (error: any) { // Type error as 'any' for error
+          console.error("Failed to send message:", error);
+          setIsTyping(false);
+          // User-friendly error message (replace alert with better UI later)
+          alert("Failed to send message. Please try again.");
+      }
   };
 
   // Handle sending message when Enter key is pressed (without Shift)
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      handleSendMessage();
-    }
+      if (e.key === "Enter" && !e.shiftKey) {
+          e.preventDefault();
+          handleSendMessage();
+      }
   };
 
   // Trigger file input for attachments
   const handleAttachmentClick = () => {
-    fileInputRef.current?.click();
+      fileInputRef.current?.click();
   };
 
   // Append file name to message input on file selection
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (files && files.length > 0) {
-      const fileName = files[0].name;
-      setInputMessage((prev) => prev + ` [Attached: ${fileName}]`);
-    }
+      const files = e.target.files;
+      if (files && files.length > 0) {
+          const fileName = files[0].name;
+          setInputMessage((prev) => prev + ` [Attached: ${fileName}]`);
+      }
   };
 
   return (
@@ -232,47 +242,48 @@ function MainPage({
       </div>
 
       {/* Input Section */}
+      {/* Input Section */}
       <div className="border-t border-gray-200 dark:border-gray-700 bg-surface-light dark:bg-surface-dark p-4">
-        <div className="flex items-end space-x-2">
-          <div className="flex-1 rounded-xl border border-gray-200 dark:border-gray-600 bg-white dark:bg-surface-alt-dark overflow-hidden shadow-card-light dark:shadow-card-dark transition-all">
-            <textarea
-              ref={textareaRef}
-              value={inputMessage}
-              onChange={(e) => setInputMessage(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder="Type your message..."
-              className="w-full p-4 focus:outline-hidden bg-transparent resize-none min-h-[56px] max-h-[160px] text-text-primary-light dark:text-text-primary-dark"
-              style={{ height: "56px" }}
-              aria-label="Message input"
-            />
-            <div className="flex justify-between items-center px-4 py-2 border-t border-gray-200 dark:border-gray-600">
-              <button
-                onClick={handleAttachmentClick}
-                className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-                aria-label="Attach file"
-              >
-                {/* Uncomment and add the Paperclip icon if needed */}
-                {/* <Paperclip className="h-5 w-5 text-text-secondary-light dark:text-text-secondary-dark" /> */}
-              </button>
-              <input
-                ref={fileInputRef}
-                type="file"
-                className="hidden"
-                onChange={handleFileChange}
-              />
-              <button
-                onClick={handleSendMessage}
-                className="p-2 rounded-full bg-primary hover:bg-primary-light active:bg-primary-dark text-white transition-colors"
-                aria-label="Send message"
-              >
-                <Send className="h-5 w-5" />
-              </button>
+                <div className="flex items-end space-x-2">
+                    <div className="flex-1 rounded-xl border border-gray-200 dark:border-gray-600 bg-white dark:bg-surface-alt-dark overflow-hidden shadow-card-light dark:shadow-card-dark transition-all">
+                        <textarea
+                            ref={textareaRef}
+                            value={inputMessage}
+                            onChange={(e) => setInputMessage(e.target.value)}
+                            onKeyDown={handleKeyDown}
+                            placeholder="Type your message..."
+                            className="w-full p-4 focus:outline-hidden bg-transparent resize-none min-h-[56px] max-h-[160px] text-text-primary-light dark:text-text-primary-dark"
+                            style={{ height: "56px" }}
+                            aria-label="Message input"
+                        />
+                        <div className="flex justify-between items-center px-4 py-2 border-t border-gray-200 dark:border-gray-600">
+                            <button
+                                onClick={handleAttachmentClick}
+                                className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                                aria-label="Attach file"
+                            >
+                                {/* Uncomment and add the Paperclip icon if needed */}
+                                {/* <Paperclip className="h-5 w-5 text-text-secondary-light dark:text-text-secondary-dark" /> */}
+                            </button>
+                            <input
+                                ref={fileInputRef}
+                                type="file"
+                                className="hidden"
+                                onChange={handleFileChange}
+                            />
+                            <button
+                                onClick={handleSendMessage}
+                                className="p-2 rounded-full bg-primary hover:bg-primary-light active:bg-primary-dark text-white transition-colors"
+                                aria-label="Send message"
+                            >
+                                <Send className="h-5 w-5" />
+                            </button>
+                        </div>
+                    </div>
+                </div>
             </div>
-          </div>
         </div>
-      </div>
-    </div>
-  );
+    );
 }
 
 export default MainPage;

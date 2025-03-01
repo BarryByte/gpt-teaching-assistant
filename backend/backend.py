@@ -123,6 +123,7 @@ class ChatRequest(BaseModel):
     question: str
     problem_slug: str
     user_id: str
+    conversation_id: str # for every new conversation, this should be unique
 
 # Fetch problem details
 @app.get("/fetch-problem/{slug}")
@@ -166,7 +167,8 @@ You are an expert AI-powered Data Structures and Algorithms (DSA) tutor using GP
 **User asked:** {request.question}
 
 **Conversation So Far:**
-{json.dumps(get_user_chat_history(request.user_id)[-5:], indent=2)}  # Include last 5 interactions to track progress and avoid repetition.
+{json.dumps(get_user_chat_history(request.user_id, request.conversation_id)[-5:], indent=2)} # Pass conversation_id here
+
 
 ---
 ### **Teaching Principles - How You Should Guide the User**
@@ -222,6 +224,7 @@ Now, respond accordingly and continue guiding the user from where the conversati
         chat_collection.insert_one({
             "user_id": request.user_id,
             "question": request.question,
+            "conversation_id": request.conversation_id,
             "response": ai_response,
         })
 
@@ -231,14 +234,18 @@ Now, respond accordingly and continue guiding the user from where the conversati
         raise HTTPException(status_code=500, detail="Error processing with Gemini API")
 
 # Retrieve chat history from MongoDB
-def get_user_chat_history(user_id: str) -> List[Dict[str, str]]:
-    history = list(chat_collection.find({"user_id": user_id}, {"_id": 0, "question": 1, "response": 1}))
+def get_user_chat_history(user_id: str, conversation_id: str) -> List[Dict[str, str]]:
+    history = list(chat_collection.find(
+        {"user_id": user_id, "conversation_id": conversation_id},
+        {"_id": 0, "question": 1, "response": 1}
+    ))
     return history
 
-# Retrieve chat history endpoint
-@app.get("/history/{user_id}")
-def get_history(user_id: str) -> Dict:
-    return {"history": get_user_chat_history(user_id)}
+
+# Retrieve chat history endpoint - Corrected route to include conversation_id
+@app.get("/history/{user_id}/{conversation_id}")
+def fetch_history(user_id: str, conversation_id: str) -> List[Dict[str, str]]: # Renamed function to avoid conflict, using fetch_history for endpoint
+    return get_user_chat_history(user_id, conversation_id) # Pass conversation_id
 
 # Run the app
 if __name__ == "__main__":

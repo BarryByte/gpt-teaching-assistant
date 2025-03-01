@@ -2,89 +2,89 @@
 
 const API_BASE_URL = "http://localhost:8000"; // Replace with your backend URL if different
 
-export async function fetchProblem(slug: string): Promise<any> {
-  const response = await fetch(`${API_BASE_URL}/fetch-problem/${slug}`);
-  if (!response.ok) {
-    throw new Error(`Failed to fetch problem: ${response.statusText}`);
-  }
-  return response.json();
+// --- Interfaces for Type Safety ---
+export interface ProblemData {
+  title: string;
+  difficulty: string;
+  tags: string[];
+  description: string;
+  hints: string[] | null;
 }
 
-export async function fetchProblemSummary(slug: string): Promise<any> {
+export interface ProblemSummary {
+  description: string;
+  examples: string[];
+}
+
+export interface ChatRequest {
+  question: string;
+  problem_slug: string;
+  user_id: string;
+  conversation_id: string;
+}
+
+export interface ChatResponse {
+  response: string;
+}
+
+export interface ChatHistoryItem {
+  question: string;
+  response: string;
+}
+
+export interface ChatHistoryResponse {
+  history: ChatHistoryItem[]; // Assuming the backend returns history as a list of items
+}
+
+
+// --- API Functions ---
+
+export async function fetchProblem(slug: string): Promise<ProblemData> {
+  const response = await fetch(`${API_BASE_URL}/fetch-problem/${slug}`);
+  if (!response.ok) {
+    // Improved error handling with status text
+    throw new Error(`Failed to fetch problem: ${response.status} ${response.statusText}`);
+  }
+  return response.json() as Promise<ProblemData>; // Type assertion
+}
+
+export async function fetchProblemSummary(slug: string): Promise<ProblemSummary> {
   const response = await fetch(`${API_BASE_URL}/fetch-problem-summary/${slug}`);
   if (!response.ok) {
-    throw new Error(`Failed to fetch problem summary: ${response.statusText}`);
+    // Improved error handling with status text
+    throw new Error(`Failed to fetch problem summary: ${response.status} ${response.statusText}`);
   }
-  return response.json();
+  return response.json() as Promise<ProblemSummary>; // Type assertion
 }
 
 export async function chatWithAI(
-  question: string,
-  problem_slug: string,
-  user_id: string
-): Promise<any> {
-  console.log("Sending to /chat:", { question, problem_slug, user_id }); // Log the data being sent
+  requestData: ChatRequest // Using ChatRequest interface for type safety and to include conversation_id
+): Promise<ChatResponse> {
+  console.log("Sending to /chat:", requestData); // Log all data including conversation_id
 
   const response = await fetch(`${API_BASE_URL}/chat`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ question, problem_slug, user_id }),
+    body: JSON.stringify(requestData),
   });
   if (!response.ok) {
-    console.error("Failed to chat with AI:", response); // Log the response for error details
-    throw new Error(`Failed to chat with AI: ${response.statusText}`);
+    console.error("Failed to chat with AI:", response); // Log full response for detailed error info
+    // Improved error handling with status text
+    throw new Error(`Failed to chat with AI: ${response.status} ${response.statusText}`);
   }
-  const data = await response.json();
-  console.log("Received from /chat:", data); // Log the received data
+  const data = await response.json() as ChatResponse; // Type assertion
+  console.log("Received from /chat:", data);
   return data;
 }
 
-export async function fetchChatHistory(user_id: string): Promise<any> {
-  const response = await fetch(`${API_BASE_URL}/history/${user_id}`);
+export async function fetchChatHistory(user_id: string, conversationId: string): Promise<ChatHistoryItem[]> { // Added conversationId parameter and return type
+  const response = await fetch(`${API_BASE_URL}/history/${user_id}/${conversationId}`); // Correct URL with conversationId
   if (!response.ok) {
-    throw new Error(`Failed to fetch chat history: ${response.statusText}`);
+    // Improved error handling with status text
+    throw new Error(`Failed to fetch chat history: ${response.status} ${response.statusText}`);
   }
-  return response.json();
+  return response.json() as Promise<ChatHistoryItem[]>; // Type assertion, directly returning array of history items
 }
 
-// import axios from 'axios';
-// import { ProblemSummaryResponse } from '../types';
-
-// const API_BASE_URL = 'http://localhost:8000';
-
-// export const fetchProblem = async (slug: string) => {
-//   try {
-//     const response = await fetch(`/fetch-problem/${slug}`);
-
-//     if (!response.ok) {
-//       throw new Error(`HTTP error! status: ${response.status}`);
-//     }
-
-//     const data: ProblemSummaryResponse = await response.json();
-//     return data;
-//   } catch (error) {
-//     console.error('Error fetching problem:', error);
-//     throw error; // Re-throw the error for the component to handle
-//   }
-//   // const response = await axios.get(`${API_BASE_URL}/fetch-problem-summary/${slug}`);
-//   // console.log('fetchProblem response data:', response.data);
-//   // return response.data;
-// };
-
-// export const sendChatMessage = async (question: string, problemSlug: string, userId: string) => {
-//   const response = await axios.post(`${API_BASE_URL}/chat`, {
-//     question,
-//     problem_slug: problemSlug,
-//     user_id: userId,
-//   });
-//   console.log('sendChatMessage response data:', response.data);
-//   return response.data;
-// };
-
-// export const fetchChatHistory = async (userId: string) => {
-//   const response = await axios.get(`${API_BASE_URL}/history/${userId}`);
-//   console.log('fetchChatHistory response data:', response.data);
-//   return response.data;
-// };
