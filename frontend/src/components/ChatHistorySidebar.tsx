@@ -1,10 +1,12 @@
-import React, { useState, useEffect } from 'react';
-import { MessageSquare, Search, Moon, Sun, Plus } from 'lucide-react';
-import ConversationItem from './/ConversationItem';
-import { Conversation } from '../types';
-import { getInitialTheme, saveThemePreference } from '../utils';
-import { fetchChatHistory } from '../services/api.ts';
+// ChatHistorySidebar.tsx
+import React, { useState, useEffect } from "react";
+import { MessageSquare, Search, Moon, Sun, Plus } from "lucide-react";
+import ConversationItem from "./ConversationItem"; // Component for rendering a single conversation
+import { Conversation } from "../types";
+import { getInitialTheme, getOrCreateUserId, saveThemePreference } from "../utils";
+import { fetchChatHistory } from "../services/api";
 
+// Define the props expected by ChatHistorySidebar
 interface ChatHistorySidebarProps {
   conversations: Conversation[];
   setConversations: React.Dispatch<React.SetStateAction<Conversation[]>>;
@@ -24,38 +26,38 @@ function ChatHistorySidebar({
   showSidebar,
   setShowSidebar,
 }: ChatHistorySidebarProps) {
-  const [searchQuery, setSearchQuery] = useState('');
+  // Local state for search input and dark mode
+  const [searchQuery, setSearchQuery] = useState("");
   const [darkMode, setDarkMode] = useState(getInitialTheme());
 
+  // Toggle dark mode by adding/removing class on document element
   useEffect(() => {
     if (darkMode) {
-      document.documentElement.classList.add('dark');
+      document.documentElement.classList.add("dark");
     } else {
-      document.documentElement.classList.remove('dark');
+      document.documentElement.classList.remove("dark");
     }
     saveThemePreference(darkMode);
   }, [darkMode]);
 
+  // Handle conversation selection: set active conversation and fetch its history
   const handleConversationSelect = async (conversationId: string) => {
     setActiveConversationId(conversationId);
-    const selectedConversation = conversations.find((c) => c.id === conversationId);
-    if (selectedConversation) {
-      setMessages(selectedConversation.messages);
-    }
     try {
-      if (localStorage.getItem('userId')) {
-        const history = await fetchChatHistory(localStorage.getItem('userId') || '');
-        setMessages(history.history);
-      }
+      const currentUserId = getOrCreateUserId();
+      const history = await fetchChatHistory(currentUserId);
+      setMessages(history.history);
     } catch (error) {
-      console.error('Failed to fetch chat history:', error);
+      console.error("Failed to fetch chat history:", error);
+      setMessages([]);
     }
-
+    // Hide the sidebar on mobile devices after selection
     if (window.innerWidth < 768) {
       setShowSidebar(false);
     }
   };
 
+  // Start a new conversation by clearing active conversation and messages
   const handleNewConversation = () => {
     setActiveConversationId(null);
     setMessages([]);
@@ -64,10 +66,12 @@ function ChatHistorySidebar({
     }
   };
 
+  // Toggle dark mode state
   const toggleDarkMode = () => {
     setDarkMode(!darkMode);
   };
 
+  // Filter conversations based on search query
   const filteredConversations = conversations.filter(
     (conv) =>
       conv.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -76,8 +80,11 @@ function ChatHistorySidebar({
 
   return (
     <div
-      className={`${showSidebar ? 'w-80' : 'w-0'} md:w-80 bg-surface-light dark:bg-surface-dark border-r border-gray-200 dark:border-gray-700 flex flex-col transition-all duration-300 overflow-hidden fixed md:relative z-30 h-full shadow-sidebar-light dark:shadow-sidebar-dark`}
+      className={`${
+        showSidebar ? "w-80" : "w-0"
+      } md:w-80 bg-surface-light dark:bg-surface-dark border-r border-gray-200 dark:border-gray-700 flex flex-col transition-all duration-300 overflow-hidden fixed md:relative z-30 h-full shadow-sidebar-light dark:shadow-sidebar-dark`}
     >
+      {/* Sidebar Header */}
       <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
         <div className="flex items-center space-x-2">
           <MessageSquare className="h-6 w-6 text-primary dark:text-primary-light" />
@@ -86,12 +93,13 @@ function ChatHistorySidebar({
         <button
           onClick={toggleDarkMode}
           className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-          aria-label={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
+          aria-label={darkMode ? "Switch to light mode" : "Switch to dark mode"}
         >
           {darkMode ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
         </button>
       </div>
 
+      {/* Search and New Conversation Controls */}
       <div className="p-4">
         <div className="relative mb-4">
           <input
@@ -114,6 +122,7 @@ function ChatHistorySidebar({
         </button>
       </div>
 
+      {/* List of Conversations */}
       <div className="flex-1 overflow-y-auto">
         <div className="px-2">
           {filteredConversations.length === 0 ? (

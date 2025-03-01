@@ -1,32 +1,41 @@
-import { useState, useEffect } from 'react';
+// App.tsx
+import React, { useState, useEffect } from 'react';
 import { Download, Settings, Menu } from 'lucide-react';
+// Import types for messages and conversations
 import { Message, Conversation } from './types';
+// Utility functions for formatting dates and generating IDs
 import { formatDate, generateUniqueId } from './utils';
+// Import child components
 import MainPage from './components/MainPage';
 import ChatHistorySidebar from './components/ChatHistorySidebar';
-import RightSidebar from './components/RightSidebar';
-import { fetchProblem, fetchProblemSummary } from './services/api.ts';
+import RightSidebar from './components/RightSidebar'; // (Optional: if used)
+import { fetchProblem, fetchProblemSummary } from './services/api';
 import axios from 'axios';
 
 function App() {
+  // State for conversations and active conversation
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
+
+  // State for chat messages and input
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputMessage, setInputMessage] = useState('');
   const [isTyping, setIsTyping] = useState(false);
-  const [showSidebar, setShowSidebar] = useState(true);
-  // const [activeTab, setActiveTab] = useState<'hints' | 'solutions' | 'help'>('hints'); // Add activeTab
 
+  // State to toggle sidebar visibility
+  const [showSidebar, setShowSidebar] = useState(true);
+
+  // State for problem selection and related data
   const [problemSlug, setProblemSlug] = useState<string | null>(null);
   const [hints, setHints] = useState<string[]>([]);
   const [code, setCode] = useState<string>('');
 
+  // Load saved conversations from localStorage on mount
   useEffect(() => {
     const savedConversations = localStorage.getItem('conversations');
     if (savedConversations) {
       const parsedConversations = JSON.parse(savedConversations);
       setConversations(parsedConversations);
-
       if (parsedConversations.length > 0) {
         setActiveConversationId(parsedConversations[0].id);
         setMessages(parsedConversations[0].messages);
@@ -34,19 +43,25 @@ function App() {
     }
   }, []);
 
+  // Save conversations to localStorage whenever they change
   useEffect(() => {
     localStorage.setItem('conversations', JSON.stringify(conversations));
   }, [conversations]);
 
+  // Export current conversation as a text file
   const handleExportChat = () => {
     if (!activeConversationId) return;
-
     const currentConversation = conversations.find(c => c.id === activeConversationId);
     if (!currentConversation) return;
 
-    const chatContent = currentConversation.messages.map(
-      (msg) => `${msg.sender === 'user' ? 'You' : 'AI'} (${formatDate(msg.timestamp)}): ${msg.content}`
-    ).join('\n\n');
+    const chatContent = currentConversation.messages
+      .map(
+        (msg) =>
+          `${msg.sender === 'user' ? 'You' : 'AI'} (${formatDate(
+            msg.timestamp
+          )}): ${msg.content}`
+      )
+      .join('\n\n');
 
     const blob = new Blob([chatContent], { type: 'text/plain' });
     const url = URL.createObjectURL(blob);
@@ -59,26 +74,30 @@ function App() {
     URL.revokeObjectURL(url);
   };
 
+  // Toggle the sidebar open/closed
   const toggleSidebar = () => {
     setShowSidebar(!showSidebar);
   };
 
+  // Handle problem selection: fetch problem details and summary, then add an AI message
   const handleProblemSelect = async (slug: string) => {
     try {
       const problem = await fetchProblem(slug); // Fetch problem details
-    const problemSummary = await fetchProblemSummary(slug);
-    const problemDescription = problemSummary.description;
+      const problemSummary = await fetchProblemSummary(slug); // Fetch problem summary
+      const problemDescription = problemSummary.description;
 
-    const problemMessage: Message = {
-      id: generateUniqueId(),
-      content: `**Problem: ${problem.title}**\n\n${problemDescription}`,
-      sender: 'ai', // Or 'system', or any appropriate sender
-      timestamp: new Date().toISOString(),
-      read: true,
-    };
+      // Create a message containing the problem information
+      const problemMessage: Message = {
+        id: generateUniqueId(),
+        content: `**Problem: ${problem.title}**\n\n${problemDescription}`,
+        sender: 'ai',
+        timestamp: new Date().toISOString(),
+        read: true,
+      };
 
-    setMessages((prev) => [...prev, problemMessage]); // Add the problem message to the messages state
-    setProblemSlug(slug); // Set the problem slug
+      // Append the problem message to chat messages and store the slug
+      setMessages((prev) => [...prev, problemMessage]);
+      setProblemSlug(slug);
     } catch (error) {
       if (axios.isAxiosError(error)) {
         console.error('Axios error fetching problem:', error.response?.data || error.message);
@@ -90,6 +109,7 @@ function App() {
 
   return (
     <div className="flex h-screen bg-background-light dark:bg-background-dark text-text-primary-light dark:text-text-primary-dark transition-colors duration-200 font-sans">
+      {/* Chat History Sidebar */}
       <ChatHistorySidebar
         conversations={conversations}
         setConversations={setConversations}
@@ -100,6 +120,7 @@ function App() {
         setShowSidebar={setShowSidebar}
       />
 
+      {/* Overlay for mobile devices when sidebar is open */}
       {showSidebar && (
         <div
           className="md:hidden fixed inset-0 bg-black bg-opacity-50 z-20"
@@ -108,7 +129,9 @@ function App() {
         ></div>
       )}
 
+      {/* Main Chat Area */}
       <div className="flex-1 flex flex-col relative">
+        {/* Top Header */}
         <div className="h-16 bg-surface-light dark:bg-surface-dark border-b border-gray-200 dark:border-gray-700 px-4 flex items-center justify-between sticky top-0 z-10 shadow-card-light dark:shadow-card-dark">
           <div className="flex items-center">
             <button
@@ -149,6 +172,7 @@ function App() {
         </div>
 
         <div className="flex-1 flex overflow-hidden">
+          {/* Main Chat Component */}
           <MainPage
             messages={messages}
             setMessages={setMessages}
@@ -164,9 +188,9 @@ function App() {
             setCode={setCode}
             handleProblemSelect={handleProblemSelect}
           />
-          
+
+          {/* Right Sidebar Component (optional) */}
           <RightSidebar />
-          {/* <TabContent activeTab={activeTab} /> */}
         </div>
       </div>
     </div>

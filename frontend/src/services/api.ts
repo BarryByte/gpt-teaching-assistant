@@ -1,6 +1,6 @@
 // api.ts
 
-const API_BASE_URL = 'http://localhost:8000'; // Replace with your backend URL if different
+const API_BASE_URL = "http://localhost:8000"; // Replace with your backend URL if different
 
 export async function fetchProblem(slug: string): Promise<any> {
   const response = await fetch(`${API_BASE_URL}/fetch-problem/${slug}`);
@@ -18,18 +18,27 @@ export async function fetchProblemSummary(slug: string): Promise<any> {
   return response.json();
 }
 
-export async function chatWithAI(question: string, problem_slug: string, user_id: string): Promise<any> {
+export async function chatWithAI(
+  question: string,
+  problem_slug: string,
+  user_id: string
+): Promise<any> {
+  console.log("Sending to /chat:", { question, problem_slug, user_id }); // Log the data being sent
+
   const response = await fetch(`${API_BASE_URL}/chat`, {
-    method: 'POST',
+    method: "POST",
     headers: {
-      'Content-Type': 'application/json',
+      "Content-Type": "application/json",
     },
     body: JSON.stringify({ question, problem_slug, user_id }),
   });
   if (!response.ok) {
+    console.error("Failed to chat with AI:", response); // Log the response for error details
     throw new Error(`Failed to chat with AI: ${response.statusText}`);
   }
-  return response.json();
+  const data = await response.json();
+  console.log("Received from /chat:", data); // Log the received data
+  return data;
 }
 
 export async function fetchChatHistory(user_id: string): Promise<any> {
@@ -39,9 +48,6 @@ export async function fetchChatHistory(user_id: string): Promise<any> {
   }
   return response.json();
 }
-
-
-
 
 // import axios from 'axios';
 // import { ProblemSummaryResponse } from '../types';

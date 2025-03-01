@@ -2,6 +2,15 @@ export function generateUniqueId(): string {
   return Date.now().toString(36) + Math.random().toString(36).substr(2);
 }
 
+export function getOrCreateUserId(): string {
+  let userId = localStorage.getItem("userId");
+  if (!userId) {
+    userId = generateUniqueId();
+    localStorage.setItem("userId", userId);
+  }
+  return userId;
+}
+
 export function formatDate(dateString: string): string {
   const date = new Date(dateString);
   const options: Intl.DateTimeFormatOptions = {

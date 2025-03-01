@@ -13,7 +13,7 @@ from typing import List, Dict
 from functools import lru_cache
 from pymongo import MongoClient
 from pymongo.server_api import ServerApi
-
+from urllib.parse import urlparse
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -150,6 +150,7 @@ def fetch_problem_summary(slug: str):
 # Chat with Gemini AI
 @app.post("/chat")
 def chat(request: ChatRequest):
+    print(f"Received chat request: {request.dict()}")
     problem_data = get_leetcode_problem_data(request.problem_slug)
     prompt = f"""
 You are an expert AI-powered Data Structures and Algorithms (DSA) tutor using GPT. Your mission is to **guide the user** step-by-step in solving the LeetCode problem '{problem_data['title']}'. You are designed to be patient, encouraging, and focused on long-term learning.

@@ -3,7 +3,7 @@ import { MessageSquare, Check, Clock } from "lucide-react";
 import { Message } from "../types";
 import { formatDate } from "../utils";
 import ReactMarkdown from "react-markdown";
-
+import robot from "../assets/robot.png";
 interface ChatMessageProps {
   message: Message;
 }
@@ -24,9 +24,10 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
           }`}
         >
           {isUser ? (
-            <span className="text-white text-sm font-medium">You</span>
+            <span className="text-white text-sm font-medium">#</span>
           ) : (
-            <MessageSquare className="h-4 w-4 text-gray-800 dark:text-gray-300" />
+            // <MessageSquare className="h-4 w-4 text-gray-800 dark:text-gray-300" />
+            <img src={robot} alt="Robot" className="w-12 h-12" />
           )}
         </div>
 
