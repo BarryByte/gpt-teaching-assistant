@@ -6,7 +6,9 @@ GPT Teaching Assistant is a web application designed to aid students in understa
 
 ## Video Demo
 
-[**Loom Video Link Here**]
+[**Loom Video Demo**](https://www.loom.com/share/454e951cc1cd4ad98d5a7c372f672100?sid=1bfe9b35-44d0-49bb-bfdc-d8d8703b7c06)
+
+
 
 ## Features
 
@@ -24,6 +26,11 @@ GPT Teaching Assistant is a web application designed to aid students in understa
 *   **Utilities:** `requests`, `beautifulsoup4`, `uvicorn`, `pydantic`.
 
 [**Screenshot of the chat interface here**]
+## Screenshots
+![image](https://github.com/user-attachments/assets/c85f19c0-cff4-4b9f-a628-1cbdd71b3496)
+![image](https://github.com/user-attachments/assets/9bdb976e-5a30-4d97-8904-2e3498c04095)
+
+
 
 ## Setup Instructions
 
