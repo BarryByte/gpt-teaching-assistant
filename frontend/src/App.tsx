@@ -10,7 +10,6 @@ import MainPage from "./components/MainPage";
 import ChatHistorySidebar from "./components/ChatHistorySidebar";
 import RightSidebar from "./components/RightSidebar";
 import { fetchProblem, fetchProblemSummary } from "./services/api";
-import axios from "axios";
 import { v4 as uuidv4 } from "uuid";
 
 function App() {
@@ -42,6 +41,7 @@ function App() {
       if (parsedConversations.length > 0) {
         setActiveConversationId(parsedConversations[0].id);
         setMessages(parsedConversations[0].messages);
+        setProblemSlug(parsedConversations[0].problemSlug || null);
       }
     }
   }, []);
@@ -61,6 +61,7 @@ function App() {
       messages: [],
       lastMessage: "",
       timestamp: "",
+      problemSlug: null, // Initialize problemSlug as null for new conversations
     };
 
     // Prepend the new conversation to the existing ones
@@ -68,6 +69,7 @@ function App() {
     // Set the new conversation as active and clear any current messages
     setActiveConversationId(newConversation.id);
     setMessages([]);
+    setProblemSlug(null); // Clear problemSlug for new conversations
   };
 
   // Export current conversation as a text file
@@ -111,11 +113,17 @@ function App() {
     );
     if (conversation) {
       setMessages(conversation.messages);
+      setProblemSlug(conversation.problemSlug || null);   // Restore problemSlug when selecting conversation
     }
   };
 
   // Handle problem selection: fetch problem details and summary, then add an AI message
   const handleProblemSelect = async (slug: string) => {
+    if (!activeConversationId) {
+      // If no active conversation, create a new one
+      handleCreateConversation();
+    }
+
     try {
       const problem = await fetchProblem(slug); // Fetch problem details
       const problemSummary = await fetchProblemSummary(slug); // Fetch problem summary
@@ -129,25 +137,24 @@ function App() {
         timestamp: new Date().toISOString(),
         read: true,
       };
-      // Create a new conversation object with a unique ID, using the problem title as the conversation title.
-      // Include the problem message in the conversation's message list.
-      const newConversation: Conversation = {
-        id: generateUniqueId(),
-        title: problem.title,
-        conversationId: uuidv4(),
-        messages: [problemMessage],
-        lastMessage: problemMessage.content,
-        timestamp: "",
-      };
-      // Update the conversations state by adding the new conversation at the beginning
-      setConversations((prev) => [newConversation, ...prev]);
 
-      // Set the newly created conversation as active and update the main chat messages
-      setActiveConversationId(newConversation.id);
-      setMessages(newConversation.messages);
-
-      // Store the selected problem slug for any further operations
-      setProblemSlug(slug);
+      setConversations((prev) => {
+        return prev.map(conv => {
+          if (conv.id === activeConversationId) {
+            return {
+              ...conv,
+              title: problem.title,
+              messages: [problemMessage], // Start new message array with problem message
+              lastMessage: problemMessage.content,
+              timestamp: new Date().toISOString(),
+              problemSlug: slug, // Store problemSlug in the conversation
+            };
+          }
+          return conv;
+        });
+      });
+      setMessages([problemMessage]); // Update messages state for MainPage
+      setProblemSlug(slug); // Update problemSlug state
     } catch (error: any) {
       // Type error as 'any' for error
       console.error(
@@ -156,6 +163,7 @@ function App() {
       );
     }
   };
+
   const activeConversation = conversations.find(
     (c) => c.id === activeConversationId
   ); // Get active conversation object

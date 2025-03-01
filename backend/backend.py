@@ -66,6 +66,26 @@ app.add_middleware(
 def clean_text(text):
     return ' '.join(text.split()).strip()
 
+#  Helper function to extract slug from URL or return slug if already a slug
+def extract_slug_from_url(problem_identifier: str) -> str:
+    """
+    Extracts the LeetCode problem slug from a URL like:
+    - 'https://leetcode.com/problems/group-anagrams/description/'
+    - 'https://leetcode.com/problems/group-anagrams'
+    Or returns the identifier if it's already a slug.
+    """
+    try:
+        parsed_url = urlparse(problem_identifier)
+        if parsed_url.netloc.endswith("leetcode.com"):  # Handle subdomains too
+            path_segments = parsed_url.path.strip('/').split('/')
+            if len(path_segments) > 1 and path_segments[0] == "problems":
+                return path_segments[1]  # Return the problem slug
+    except Exception:
+        pass  # If parsing fails, assume input is already a slug
+
+    return problem_identifier  # If it's not a URL, assume it's already a slug
+
+
 # Fetch LeetCode problem details
 @lru_cache(maxsize=100)
 def get_leetcode_problem_data(slug: str) -> Dict:
@@ -126,12 +146,14 @@ class ChatRequest(BaseModel):
     conversation_id: str # for every new conversation, this should be unique
 
 # Fetch problem details
-@app.get("/fetch-problem/{slug}")
-def fetch_problem(slug: str) -> Dict:
+@app.get("/fetch-problem/{problem_identifier:path}")
+def fetch_problem(problem_identifier: str) -> Dict:
+    slug = extract_slug_from_url(problem_identifier)
     return get_leetcode_problem_data(slug)
 
-@app.get("/fetch-problem-summary/{slug}")
-def fetch_problem_summary(slug: str):
+@app.get("/fetch-problem-summary/{problem_identifier:path}")
+def fetch_problem_summary(problem_identifier: str):
+    slug = extract_slug_from_url(problem_identifier)
     try:
         problem_data = get_leetcode_problem_data(slug)
         # Extract description and examples (if present)
@@ -152,7 +174,8 @@ def fetch_problem_summary(slug: str):
 @app.post("/chat")
 def chat(request: ChatRequest):
     print(f"Received chat request: {request.dict()}")
-    problem_data = get_leetcode_problem_data(request.problem_slug)
+    slug = extract_slug_from_url(request.problem_slug)
+    problem_data = get_leetcode_problem_data(slug)
     prompt = f"""
 You are an expert AI-powered Data Structures and Algorithms (DSA) tutor using GPT. Your mission is to **guide the user** step-by-step in solving the LeetCode problem '{problem_data['title']}'. You are designed to be patient, encouraging, and focused on long-term learning.
 

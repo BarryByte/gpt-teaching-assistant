@@ -12,6 +12,15 @@ interface TabContentProps {
 }
 
 const TabContent: React.FC<TabContentProps> = ({ activeTab }) => {
+  const handleCopyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text).then(() => {
+      alert(`Copied to clipboard: ${text}`); // Basic feedback - can be improved
+    }).catch(err => {
+      console.error("Failed to copy text: ", err);
+      alert("Failed to copy text to clipboard.");
+    });
+  };
+
   if (activeTab === "hints") {
     return (
       <div className="space-y-5">
@@ -25,18 +34,26 @@ const TabContent: React.FC<TabContentProps> = ({ activeTab }) => {
               Try asking about:
             </h4>
             <ul className="text-sm text-text-primary-light dark:text-text-primary-dark space-y-3">
-              <li className="cursor-pointer hover:text-primary dark:hover:text-primary-light transition-colors flex items-center">
+              <li
+                className="cursor-pointer hover:text-primary dark:hover:text-primary-light transition-colors flex items-center"
+                onClick={() => handleCopyToClipboard("How can I optimize the time complexity for this problem?")}
+              >
                 <ArrowRight className="h-3 w-3 mr-2 text-accent" />
-                "How can I optimize the time complexity for this problem?"
+                <span>"How can I optimize the time complexity for this problem?"</span>
               </li>
-              <li className="cursor-pointer hover:text-primary dark:hover:text-primary-light transition-colors flex items-center">
+              <li
+                className="cursor-pointer hover:text-primary dark:hover:text-primary-light transition-colors flex items-center"
+                onClick={() => handleCopyToClipboard("What approach should I take for this graph traversal?")}
+              >
                 <ArrowRight className="h-3 w-3 mr-2 text-accent" />
-                "What approach should I take for this graph traversal?"
+                <span>"What approach should I take for this graph traversal?"</span>
               </li>
-              <li className="cursor-pointer hover:text-primary dark:hover:text-primary-light transition-colors flex items-center">
+              <li
+                className="cursor-pointer hover:text-primary dark:hover:text-primary-light transition-colors flex items-center"
+                onClick={() => handleCopyToClipboard("Can you help me understand the trade-offs between recursion and iteration?")}
+              >
                 <ArrowRight className="h-3 w-3 mr-2 text-accent" />
-                "Can you help me understand the trade-offs between recursion and
-                iteration?"
+                <span>"Can you help me understand the trade-offs between recursion and iteration?"</span>
               </li>
             </ul>
           </div>
@@ -46,18 +63,26 @@ const TabContent: React.FC<TabContentProps> = ({ activeTab }) => {
               Current DSA topics:
             </h4>
             <ul className="text-sm text-text-primary-light dark:text-text-primary-dark space-y-3">
-              <li className="cursor-pointer hover:text-primary dark:hover:text-primary-light transition-colors flex items-center">
+              <li
+                className="cursor-pointer hover:text-primary dark:hover:text-primary-light transition-colors flex items-center"
+                onClick={() => handleCopyToClipboard("Explain dynamic programming with an example")}
+              >
                 <ArrowRight className="h-3 w-3 mr-2 text-primary" />
-                "Explain dynamic programming with an example"
+                <span>"Explain dynamic programming with an example"</span>
               </li>
-              <li className="cursor-pointer hover:text-primary dark:hover:text-primary-light transition-colors flex items-center">
+              <li
+                className="cursor-pointer hover:text-primary dark:hover:text-primary-light transition-colors flex items-center"
+                onClick={() => handleCopyToClipboard("How do I analyze the time and space complexity of an algorithm?")}
+              >
                 <ArrowRight className="h-3 w-3 mr-2 text-primary" />
-                "How do I analyze the time and space complexity of an
-                algorithm?"
+                <span>"How do I analyze the time and space complexity of an algorithm?"</span>
               </li>
-              <li className="cursor-pointer hover:text-primary dark:hover:text-primary-light transition-colors flex items-center">
+              <li
+                className="cursor-pointer hover:text-primary dark:hover:text-primary-light transition-colors flex items-center"
+                onClick={() => handleCopyToClipboard("What are common pitfalls when implementing tree traversals?")}
+              >
                 <ArrowRight className="h-3 w-3 mr-2 text-primary" />
-                "What are common pitfalls when implementing tree traversals?"
+                <span>"What are common pitfalls when implementing tree traversals?"</span>
               </li>
             </ul>
           </div>
@@ -67,17 +92,26 @@ const TabContent: React.FC<TabContentProps> = ({ activeTab }) => {
               Deep Dive Prompts:
             </h4>
             <ul className="text-sm text-text-primary-light dark:text-text-primary-dark space-y-3">
-              <li className="cursor-pointer hover:text-primary dark:hover:text-primary-light transition-colors flex items-center">
+              <li
+                className="cursor-pointer hover:text-primary dark:hover:text-primary-light transition-colors flex items-center"
+                onClick={() => handleCopyToClipboard("Compare iterative and recursive approaches for this problem")}
+              >
                 <ArrowRight className="h-3 w-3 mr-2 text-secondary" />
-                "Compare iterative and recursive approaches for this problem"
+                <span>"Compare iterative and recursive approaches for this problem"</span>
               </li>
-              <li className="cursor-pointer hover:text-primary dark:hover:text-primary-light transition-colors flex items-center">
+              <li
+                className="cursor-pointer hover:text-primary dark:hover:text-primary-light transition-colors flex items-center"
+                onClick={() => handleCopyToClipboard("Outline a step-by-step plan to debug this algorithm")}
+              >
                 <ArrowRight className="h-3 w-3 mr-2 text-secondary" />
-                "Outline a step-by-step plan to debug this algorithm"
+                <span>"Outline a step-by-step plan to debug this algorithm"</span>
               </li>
-              <li className="cursor-pointer hover:text-primary dark:hover:text-primary-light transition-colors flex items-center">
+              <li
+                className="cursor-pointer hover:text-primary dark:hover:text-primary-light transition-colors flex items-center"
+                onClick={() => handleCopyToClipboard("Discuss how to refine the solution to handle edge cases")}
+              >
                 <ArrowRight className="h-3 w-3 mr-2 text-secondary" />
-                "Discuss how to refine the solution to handle edge cases"
+                <span>"Discuss how to refine the solution to handle edge cases"</span>
               </li>
             </ul>
           </div>

@@ -7,6 +7,7 @@ export interface Message {
 }
 
 export interface Conversation {
+  problemSlug: null;
   id: string;
   title: string;
   lastMessage: string;

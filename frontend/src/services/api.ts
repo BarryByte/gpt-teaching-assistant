@@ -1,5 +1,3 @@
-// api.ts
-
 const API_BASE_URL = "http://localhost:8000"; // Replace with your backend URL if different
 
 // --- Interfaces for Type Safety ---
@@ -35,7 +33,23 @@ export interface ChatHistoryItem {
 export interface ChatHistoryResponse {
   history: ChatHistoryItem[]; // Assuming the backend returns history as a list of items
 }
+export interface Message {
+  id: string;
+  content: string;
+  sender: 'user' | 'ai';
+  timestamp: string;
+  read: boolean;
+}
 
+export interface Conversation {
+  id: string;
+  conversationId: string;
+  title: string;
+  messages: Message[];
+  lastMessage: string;
+  timestamp: string;
+  problemSlug: string | null; // Add problemSlug to Conversation interface
+}
 
 // --- API Functions ---
 

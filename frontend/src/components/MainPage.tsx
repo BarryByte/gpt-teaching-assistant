@@ -46,7 +46,11 @@ function MainPage({
 
   // Local state for input message - now managed in MainPage
   const [inputMessage, setInputMessage] = useState<string>("");
+  const [localProblemSlug, setLocalProblemSlug] = useState<string | null>(problemSlug); // Local problem slug state
 
+  useEffect(() => {
+    setLocalProblemSlug(problemSlug); // Sync localProblemSlug with prop problemSlug
+  }, [problemSlug]);
 
   // Scroll to the bottom whenever messages update
   useEffect(() => {
@@ -183,12 +187,14 @@ function MainPage({
         <input
           type="text"
           placeholder="Enter LeetCode slug"
-          onChange={(e) => setProblemSlug(e.target.value)}
+          value={localProblemSlug || ""} // Use localProblemSlug here for input value
+          onChange={(e) => setLocalProblemSlug(e.target.value)} // Update localProblemSlug
           className="border rounded-sm p-2 w-full mb-2"
         />
         <button
-          onClick={() => handleProblemSelect(problemSlug || "")}
-          className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-sm"
+           onClick={() => handleProblemSelect(localProblemSlug || "")} // Use localProblemSlug for problem select
+           className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-sm"
+        
         >
           Fetch Problem
         </button>
