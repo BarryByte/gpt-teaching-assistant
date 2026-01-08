@@ -4,3 +4,4 @@ prompt_modifications.txt
 __pycache__/
 gpt-assistant-env/
 temp.py
+myenv/

@@ -9,11 +9,14 @@ import { formatDate, generateUniqueId } from "./utils";
 import MainPage from "./components/MainPage";
 import ChatHistorySidebar from "./components/ChatHistorySidebar";
 import RightSidebar from "./components/RightSidebar";
+import LandingPage from "./components/LandingPage";
 import { fetchProblem, fetchProblemSummary } from "./services/api";
 import { v4 as uuidv4 } from "uuid";
 
 function App() {
+  const [showLanding, setShowLanding] = useState(true);
   // State for conversations and active conversation
+
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeConversationId, setActiveConversationId] = useState<
     string | null
@@ -46,14 +49,32 @@ function App() {
     }
   }, []);
 
+  // Sync current messages and problemSlug back to the conversations array
+  useEffect(() => {
+    if (activeConversationId) {
+      setConversations((prev) =>
+        prev.map((conv) =>
+          conv.id === activeConversationId
+            ? {
+              ...conv,
+              messages,
+              problemSlug,
+              lastMessage: messages.length > 0 ? messages[messages.length - 1].content : conv.lastMessage,
+              timestamp: messages.length > 0 ? messages[messages.length - 1].timestamp : conv.timestamp
+            }
+            : conv
+        )
+      );
+    }
+  }, [messages, problemSlug, activeConversationId]);
+
   // Save conversations to localStorage whenever they change
   useEffect(() => {
     localStorage.setItem("conversations", JSON.stringify(conversations));
   }, [conversations]);
 
   // Callback to create a new conversation
-  const handleCreateConversation = () => {
-    // Create a new conversation with a unique ID and conversationID
+  const handleCreateConversation = (): Conversation => {
     const newConversation: Conversation = {
       id: generateUniqueId(),
       conversationId: uuidv4(),
@@ -61,15 +82,14 @@ function App() {
       messages: [],
       lastMessage: "",
       timestamp: "",
-      problemSlug: null, // Initialize problemSlug as null for new conversations
+      problemSlug: null,
     };
 
-    // Prepend the new conversation to the existing ones
     setConversations((prev) => [newConversation, ...prev]);
-    // Set the new conversation as active and clear any current messages
     setActiveConversationId(newConversation.id);
     setMessages([]);
-    setProblemSlug(null); // Clear problemSlug for new conversations
+    setProblemSlug(null);
+    return newConversation;
   };
 
   // Export current conversation as a text file
@@ -117,19 +137,19 @@ function App() {
     }
   };
 
-  // Handle problem selection: fetch problem details and summary, then add an AI message
+  // Handle problem selection
   const handleProblemSelect = async (slug: string) => {
-    if (!activeConversationId) {
-      // If no active conversation, create a new one
-      handleCreateConversation();
+    let currentConvo = conversations.find((c) => c.id === activeConversationId);
+
+    if (!currentConvo) {
+      currentConvo = handleCreateConversation();
     }
 
     try {
-      const problem = await fetchProblem(slug); // Fetch problem details
-      const problemSummary = await fetchProblemSummary(slug); // Fetch problem summary
+      const problem = await fetchProblem(slug);
+      const problemSummary = await fetchProblemSummary(slug);
       const problemDescription = problemSummary.description;
 
-      // Create a message containing the problem information
       const problemMessage: Message = {
         id: generateUniqueId(),
         content: `**Problem: ${problem.title}**\n\n${problemDescription}`,
@@ -140,27 +160,23 @@ function App() {
 
       setConversations((prev) => {
         return prev.map(conv => {
-          if (conv.id === activeConversationId) {
+          if (conv.id === currentConvo!.id) {
             return {
               ...conv,
               title: problem.title,
-              messages: [problemMessage], // Start new message array with problem message
+              messages: [problemMessage],
               lastMessage: problemMessage.content,
               timestamp: new Date().toISOString(),
-              problemSlug: slug, // Store problemSlug in the conversation
+              problemSlug: slug,
             };
           }
           return conv;
         });
       });
-      setMessages([problemMessage]); // Update messages state for MainPage
-      setProblemSlug(slug); // Update problemSlug state
+      setMessages([problemMessage]);
+      setProblemSlug(slug);
     } catch (error: any) {
-      // Type error as 'any' for error
-      console.error(
-        "Error fetching problem:",
-        error.response?.data || error.message || error
-      );
+      console.error("Error fetching problem:", error);
     }
   };
 
@@ -168,14 +184,24 @@ function App() {
     (c) => c.id === activeConversationId
   ); // Get active conversation object
 
+  if (showLanding) {
+    return <LandingPage onStart={() => setShowLanding(false)} />;
+  }
+
   return (
     <div className="flex h-screen bg-background-light dark:bg-background-dark text-text-primary-light dark:text-text-primary-dark transition-colors duration-200 font-sans">
       {/* Sidebar: Displays list of conversations and a button to create new ones */}
       <ChatHistorySidebar
         conversations={conversations}
         activeConversationId={activeConversationId}
-        onSelectConversation={handleSelectConversation}
-        onCreateConversation={handleCreateConversation}
+        onSelectConversation={(id) => {
+          handleSelectConversation(id);
+          setShowLanding(false);
+        }}
+        onCreateConversation={() => {
+          handleCreateConversation();
+          setShowLanding(false);
+        }}
       />
       {/* Overlay for mobile devices when sidebar is open */}
       {showSidebar && (
@@ -201,31 +227,38 @@ function App() {
             <h2 className="text-lg font-semibold truncate max-w-[200px] md:max-w-md">
               {activeConversationId
                 ? conversations.find((c) => c.id === activeConversationId)
-                    ?.title || "Chat"
+                  ?.title || "Chat"
                 : "New Conversation"}
             </h2>
           </div>
-          <div className="flex space-x-1">
+          <div className="flex items-center space-x-2">
             <button
-              onClick={handleExportChat}
-              disabled={!activeConversationId}
-              className={`p-2 rounded-full transition-colors ${
-                activeConversationId
+              onClick={() => setShowLanding(true)}
+              className="px-3 py-1.5 text-xs font-semibold bg-primary/10 text-primary hover:bg-primary/20 rounded-lg transition-colors border border-primary/20"
+            >
+              Home
+            </button>
+            <div className="flex space-x-1">
+              <button
+                onClick={handleExportChat}
+                disabled={!activeConversationId}
+                className={`p-2 rounded-full transition-colors ${activeConversationId
                   ? "hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark text-text-secondary-light dark:text-text-secondary-dark"
                   : "text-text-muted-light dark:text-text-muted-dark cursor-not-allowed opacity-50"
-              }`}
-              aria-label="Export chat"
-              title="Export chat"
-            >
-              <Download className="h-5 w-5" />
-            </button>
-            <button
-              className="p-2 rounded-full hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark transition-colors"
-              aria-label="Settings"
-              title="Settings"
-            >
-              <Settings className="h-5 w-5 text-text-secondary-light dark:text-text-secondary-dark" />
-            </button>
+                  }`}
+                aria-label="Export chat"
+                title="Export chat"
+              >
+                <Download className="h-5 w-5" />
+              </button>
+              <button
+                className="p-2 rounded-full hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark transition-colors"
+                aria-label="Settings"
+                title="Settings"
+              >
+                <Settings className="h-5 w-5 text-text-secondary-light dark:text-text-secondary-dark" />
+              </button>
+            </div>
           </div>
         </div>
 
@@ -242,12 +275,16 @@ function App() {
             setHints={setHints}
             code={code}
             setCode={setCode}
-            handleProblemSelect={handleProblemSelect}
+            handleProblemSelect={async (slug) => {
+              await handleProblemSelect(slug);
+              setShowLanding(false);
+            }}
             conversationId={activeConversation?.conversationId} // Pass conversationId prop here
           />
 
           {/* Right Sidebar Component*/}
-          <RightSidebar />
+          <RightSidebar code={code} setCode={setCode} />
+
         </div>
       </div>
     </div>

@@ -5,15 +5,16 @@ import requests
 import json
 import os
 import google.generativeai as genai
-from bs4 import BeautifulSoup
-from dotenv import load_dotenv
+from scrapers import get_scraper, extract_identifier
 import logging
-import asyncio
-from typing import List, Dict
 from functools import lru_cache
+from typing import List, Dict
 from pymongo import MongoClient
 from pymongo.server_api import ServerApi
-from urllib.parse import urlparse
+from datetime import datetime
+from dotenv import load_dotenv
+
+
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -62,105 +63,44 @@ app.add_middleware(
 )
 
 
-# Helper function to clean text
-def clean_text(text):
-    return ' '.join(text.split()).strip()
-
-#  Helper function to extract slug from URL or return slug if already a slug
-def extract_slug_from_url(problem_identifier: str) -> str:
-    """
-    Extracts the LeetCode problem slug from a URL like:
-    - 'https://leetcode.com/problems/group-anagrams/description/'
-    - 'https://leetcode.com/problems/group-anagrams'
-    Or returns the identifier if it's already a slug.
-    """
-    try:
-        parsed_url = urlparse(problem_identifier)
-        if parsed_url.netloc.endswith("leetcode.com"):  # Handle subdomains too
-            path_segments = parsed_url.path.strip('/').split('/')
-            if len(path_segments) > 1 and path_segments[0] == "problems":
-                return path_segments[1]  # Return the problem slug
-    except Exception:
-        pass  # If parsing fails, assume input is already a slug
-
-    return problem_identifier  # If it's not a URL, assume it's already a slug
-
-
-# Fetch LeetCode problem details
+# Generic problem data fetcher with caching
 @lru_cache(maxsize=100)
-def get_leetcode_problem_data(slug: str) -> Dict:
-    url = "https://leetcode.com/graphql"
-    headers = {
-        "User-Agent": "Mozilla/5.0",
-        "Content-Type": "application/json",
-        "Referer": f"https://leetcode.com/problems/{slug}/"
-    }
-    query = {
-        "query": """
-        query getQuestionDetail($titleSlug: String!) {
-            question(titleSlug: $titleSlug) {
-                title
-                difficulty
-                topicTags { name }
-                content
-                hints
-                stats
-            }
-        }""",
-        "variables": {"titleSlug": slug}
-    }
+def get_problem_data(identifier: str) -> Dict:
+    scraper, platform = get_scraper(identifier)
+    if not scraper:
+        raise HTTPException(status_code=400, detail="Unsupported platform or invalid URL")
+    
+    clean_id = extract_identifier(identifier, platform)
+    data = scraper.fetch_problem(clean_id)
+    
+    if not data:
+        raise HTTPException(status_code=404, detail=f"No data found for {identifier} on {platform}")
+        
+    return data
 
-    try:
-        response = requests.post(url, headers=headers, json=query)
-        response.raise_for_status()  # Raise HTTPError for bad responses (4xx or 5xx)
-        data = response.json().get("data", {}).get("question", {})
-        if not data:
-            raise HTTPException(status_code=404, detail=f"No data found for {slug}")
 
-        # Parse description
-        soup = BeautifulSoup(data.get("content", ""), "html.parser")
-        description = clean_text(soup.get_text())
-
-        # Structure output
-        return {
-            "title": data.get("title"),
-            "difficulty": data.get("difficulty"),
-            "tags": [tag["name"] for tag in data.get("topicTags", [])],
-            "description": description,
-            "hints": data.get("hints", None),
-
-        }
-
-    except requests.exceptions.RequestException as e:
-        logging.error(f"Error fetching {slug}: {e}")
-        raise HTTPException(status_code=500, detail=f"Error fetching {slug}: {str(e)}")
-    except json.JSONDecodeError:
-        logging.error(f"Invalid JSON response from LeetCode API for {slug}")
-        raise HTTPException(status_code=500, detail="Invalid JSON response from LeetCode API")
 
 # Request model for chat
 class ChatRequest(BaseModel):
     question: str
-    problem_slug: str
+    problem_slug: str # Keeping the name for backward compatibility, but it's now a URL or identifier
     user_id: str
-    conversation_id: str # for every new conversation, this should be unique
+    conversation_id: str
+
 
 # Fetch problem details
 @app.get("/fetch-problem/{problem_identifier:path}")
 def fetch_problem(problem_identifier: str) -> Dict:
-    slug = extract_slug_from_url(problem_identifier)
-    return get_leetcode_problem_data(slug)
+    return get_problem_data(problem_identifier)
 
 @app.get("/fetch-problem-summary/{problem_identifier:path}")
 def fetch_problem_summary(problem_identifier: str):
-    slug = extract_slug_from_url(problem_identifier)
     try:
-        problem_data = get_leetcode_problem_data(slug)
+        problem_data = get_problem_data(problem_identifier)
         # Extract description and examples (if present)
         description = problem_data.get("description", "")
         examples = []
         if "Example" in description:
-            # Simple example extraction (can be improved)
             example_start = description.find("Example")
             examples_str = description[example_start:]
             examples = examples_str.split("Example")
@@ -170,27 +110,44 @@ def fetch_problem_summary(problem_identifier: str):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+
+from google.api_core import exceptions
+
 # Chat with Gemini AI
 @app.post("/chat")
 def chat(request: ChatRequest):
-    print(f"Received chat request: {request.dict()}")
-    slug = extract_slug_from_url(request.problem_slug)
-    problem_data = get_leetcode_problem_data(slug)
-    prompt = f"""
-You are an expert AI-powered Data Structures and Algorithms (DSA) tutor using GPT. Your mission is to **guide the user** step-by-step in solving the LeetCode problem '{problem_data['title']}'. You are designed to be patient, encouraging, and focused on long-term learning.
+    try:
+        logging.info(f"Received chat request for problem: {request.problem_slug}")
+        
+        # 1. Fetch problem data (handles its own HTTPExceptions)
+        problem_data = get_problem_data(request.problem_slug)
+        
+        # 2. Build Chat History Context
+        try:
+            history = get_user_chat_history(request.user_id, request.conversation_id)
+            history_context = json.dumps(history[-5:], indent=2)
+        except Exception as e:
+            logging.error(f"MongoDB history fetch error: {e}")
+            history_context = "[]" # Fallback to empty history if DB fails
+
+        # 3. Construct Prompt
+        prompt = f"""
+You are an expert AI-powered Data Structures and Algorithms (DSA) tutor. Your mission is to **guide the user** step-by-step in solving the problem '{problem_data['title']}' from {problem_data['platform']}. You are designed to be patient, encouraging, and focused on long-term learning.
 
 ---
 ### **Problem Details**
+* **Platform:** {problem_data['platform']}
 * **Difficulty:** {problem_data['difficulty']}
 * **Tags:** {', '.join(problem_data['tags'])}
 * **Description:** {problem_data['description']}
+
 
 ---
 ### **User's Current Question & Context**
 **User asked:** {request.question}
 
 **Conversation So Far:**
-{json.dumps(get_user_chat_history(request.user_id, request.conversation_id)[-5:], indent=2)} # Pass conversation_id here
+{history_context}
 
 
 ---
@@ -199,9 +156,9 @@ You are an expert AI-powered Data Structures and Algorithms (DSA) tutor using GP
 1.  **Progressive Problem Decomposition:**  Break down the problem into smaller, logical steps. Start with high-level strategy and progressively delve into implementation details.  **Crucially, move forward to the next step after the user demonstrates understanding, avoid repeating questions on the same point.**
 
 2.  **Adaptive Hinting Strategy:**  If the user is stuck or explicitly asks for help, provide hints in increasing levels of detail:
-    *   **Level 1: Vague Hint (Directional):** Offer a general direction or related concept.  *(Example: "Think about the properties of sorted arrays." )*
-    *   **Level 2: Medium Hint (Approach Suggestion):** Suggest a specific algorithm or data structure. *(Example: "Could a two-pointer approach be useful here?")*
-    *   **Level 3: Specific Hint (Implementation Nudge):**  Provide a more concrete step or a crucial detail. *(Example: "Consider using two pointers, one at the start and one at the end, and move them inwards.")*
+    *   **Level 1: Vague Hint (Directional):** Offer a general direction or related concept.
+    *   **Level 2: Medium Hint (Approach Suggestion):** Suggest a specific algorithm or data structure. 
+    *   **Level 3: Specific Hint (Implementation Nudge):**  Provide a more concrete step or a crucial detail.
     *   **Only proceed to the next hint level if the user remains stuck after the previous hint.** Encourage the user to try solving with each hint before giving more.
 
 3.  **Evaluate User Approaches & Code Constructively:** If the user provides their own approach or code:
@@ -209,52 +166,66 @@ You are an expert AI-powered Data Structures and Algorithms (DSA) tutor using GP
     *   **Then, provide specific, actionable feedback:**  Point out areas for improvement, potential bugs, efficiency concerns, or better alternatives.
     *   **Suggest optimizations and alternative strategies.** Focus on learning and code quality, not just getting to a correct solution quickly.
 
-4.  **Iterative Code Snippets - Not Full Solutions:** Provide code snippets to illustrate specific concepts or steps, **but avoid giving complete solutions upfront unless absolutely necessary (e.g., user explicitly gives up after multiple attempts).** When providing snippets, always explain the code's purpose and logic clearly.
+4.  **Iterative Code Snippets - Not Full Solutions:** Provide code snippets to illustrate specific concepts or steps, **but avoid giving complete solutions upfront unless absolutely necessary.** When providing snippets, always explain the code's purpose and logic clearly.
 
-5.  **Guiding Questions for Active Learning:**  End each response with a thoughtful question that prompts the user to think critically and actively engage with the problem-solving process.  These questions should encourage them to:
-    *   Explain their reasoning.
-    *   Consider next steps.
-    *   Think about alternative approaches.
-    *   Reflect on the concepts they are learning.
+5.  **Guiding Questions for Active Learning:**  End each response with a thoughtful question that prompts the user to think critically and actively engage with the problem-solving process.
 
 ---
 ### **Handling "Edge Queries" and User States**
 
 6.  **Address "I Don't Know" or User Frustration:** If the user expresses confusion or says "I don't know":
-    *   **Acknowledge their difficulty and offer encouragement.** *(Example: "This problem is tricky, it's okay to feel stuck. We'll work through it.")*
+    *   **Acknowledge their difficulty and offer encouragement.** 
     *   **Rephrase your previous question in a simpler way.**
     *   **Break down the problem into even smaller sub-problems.**
     *   **Offer to revisit foundational concepts** if needed.
 
-7.  **Clarify Ambiguous Questions:** If the user's question is unclear, ask clarifying questions to understand their intent before responding. *(Example: "Could you please elaborate on what you mean by 'more efficient' in this context?")*
+7.  **Clarify Ambiguous Questions:** If the user's question is unclear, ask clarifying questions to understand their intent before responding.
 
 8.  **Handle Unrelated Questions (DSA Concepts):** If the user asks about a DSA concept not directly related to the current problem (e.g., "What is Big O?"):
     *   **Briefly address their question clearly and concisely.**
-    *   **Then, gently guide them back to the LeetCode problem** to maintain focus on problem-solving.  *(Example: "Big O notation helps us analyze algorithm efficiency... Now, back to our problem, how do you think Big O applies to the approach we're discussing?")*
+    *   **Then, gently guide them back to the problem** to maintain focus.
 
-9.  **Code Generation Policy (Be Conservative):**  **Do not provide full solution code directly unless the user explicitly requests it after multiple attempts and expresses giving up.** Prioritize guiding them to write the code themselves. If full code is given as a last resort, explain it thoroughly.
+9.  **Code Generation Policy (Be Conservative):**  **Do not provide full solution code directly unless the user explicitly requests it after multiple attempts.** Prioritize guiding them to write the code themselves.
 
 ---
 Now, respond accordingly and continue guiding the user from where the conversation left off, keeping these teaching principles and edge case handling strategies in mind.
 """
 
-    try:
-        model = genai.GenerativeModel('gemini-2.0-flash')
+        # 4. Generate Content with Gemini
+        model = genai.GenerativeModel('gemini-2.5-flash')
         response = model.generate_content(prompt)
         ai_response = response.text.strip()
 
-        # Store chat history in MongoDB
-        chat_collection.insert_one({
-            "user_id": request.user_id,
-            "question": request.question,
-            "conversation_id": request.conversation_id,
-            "response": ai_response,
-        })
+        # 5. Store in MongoDB
+        try:
+            chat_collection.insert_one({
+                "user_id": request.user_id,
+                "question": request.question,
+                "conversation_id": request.conversation_id,
+                "response": ai_response,
+                "timestamp": datetime.now().isoformat()
+            })
+        except Exception as e:
+            logging.error(f"MongoDB insert error: {e}")
+            # We don't raise here, we still want to return the AI response even if storage fails
 
         return {"response": ai_response}
+
+    except exceptions.ResourceExhausted as e:
+        logging.error(f"Gemini Rate Limit hit: {e}")
+        raise HTTPException(
+            status_code=429, 
+            detail="The AI tutor is currently receiving too many requests. Please wait a minute before trying again."
+        )
+    except exceptions.InvalidArgument as e:
+        logging.error(f"Gemini Invalid Argument: {e}")
+        raise HTTPException(status_code=400, detail="Invalid request parameters sent to AI.")
+    except HTTPException as e:
+        # Re-raise FastAPIs own HTTPExceptions (e.g. from get_problem_data)
+        raise e
     except Exception as e:
-        logging.error(f"Gemini API error: {e}")
-        raise HTTPException(status_code=500, detail="Error processing with Gemini API")
+        logging.error(f"Unexpected error in /chat: {e}")
+        raise HTTPException(status_code=500, detail=f"An internal error occurred: {str(e)}")
 
 # Retrieve chat history from MongoDB
 def get_user_chat_history(user_id: str, conversation_id: str) -> List[Dict[str, str]]:

@@ -1,15 +1,11 @@
-// MainPage.tsx
-import React, { useEffect, useRef, useState } from "react"; // Import useState
-import { Send, MessageSquare } from "lucide-react";
+import React, { useEffect, useRef, useState } from "react";
+import { Send, MessageSquare, Zap } from "lucide-react";
 import ChatMessage from "./ChatMessage";
 import { Message } from "../types";
 import { generateUniqueId, getOrCreateUserId } from "../utils";
-import { chatWithAI } from "../services/api"; // Removed fetchChatHistory, fetchProblem, fetchProblemSummary and axios imports
-import { ChatRequest, ChatResponse } from "../services/api"; // Import the ChatRequest interface
+import { chatWithAI, ChatRequest } from "../services/api";
+import robot from "../assets/robot.png";
 
-
-
-// Define the props required by MainPage, including conversationId
 interface MainPageProps {
   messages: Message[];
   setMessages: React.Dispatch<React.SetStateAction<Message[]>>;
@@ -22,7 +18,7 @@ interface MainPageProps {
   code: string;
   setCode: React.Dispatch<React.SetStateAction<string>>;
   handleProblemSelect: (slug: string) => Promise<void>;
-  conversationId: string | undefined; // Add conversationId to props, optional as it might be undefined initially
+  conversationId: string | undefined;
 }
 
 function MainPage({
@@ -31,265 +27,231 @@ function MainPage({
   isTyping,
   setIsTyping,
   problemSlug,
-  setProblemSlug,
-  hints,
+  setProblemSlug: _setProblemSlug,
+  hints: _hints,
   setHints,
-  code,
+  code: _code,
   setCode,
   handleProblemSelect,
-  conversationId, // Receive conversationId as prop
+  conversationId,
 }: MainPageProps) {
-  // Refs for auto-scrolling, file input, and textarea resizing
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  // Local state for input message - now managed in MainPage
   const [inputMessage, setInputMessage] = useState<string>("");
-  const [localProblemSlug, setLocalProblemSlug] = useState<string | null>(problemSlug); // Local problem slug state
+  const [localProblemSlug, setLocalProblemSlug] = useState<string | null>(problemSlug);
+  const [isLoadingProblem, setIsLoadingProblem] = useState(false);
 
   useEffect(() => {
-    setLocalProblemSlug(problemSlug); // Sync localProblemSlug with prop problemSlug
+    setLocalProblemSlug(problemSlug);
   }, [problemSlug]);
 
-  // Scroll to the bottom whenever messages update
   useEffect(() => {
-      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  // Auto-resize textarea based on its content
   useEffect(() => {
-      if (textareaRef.current) {
-          textareaRef.current.style.height = "auto";
-          textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 160)}px`;
-      }
+    if (textareaRef.current) {
+      textareaRef.current.style.height = "auto";
+      textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 160)}px`;
+    }
   }, [inputMessage]);
 
-  // Send chat message to backend and return the response
-  const sendChatMessage = async (
-      question: string,
-      problemSlug: string,
-      userId: string,
-      conversationId: string // Accept conversationId
-  ): Promise<ChatResponse> => {
-      try {
-          // Create ChatRequest object with conversationId
-          const chatRequest: ChatRequest = {
-              question: question,
-              problem_slug: problemSlug,
-              user_id: userId,
-              conversation_id: conversationId, // Include conversationId in request
-          };
-          const response = await chatWithAI(chatRequest); // Pass ChatRequest object
-          return response;
-      } catch (error: any) { // Type error as 'any' for error
-          console.error("Failed to send chat message:", error);
-          throw error;
-      }
-  };
+  const onFetchProblem = async () => {
+    if (!localProblemSlug) return;
+    setIsLoadingProblem(true);
+    try {
+      await handleProblemSelect(localProblemSlug);
+    } catch (error) {
+      console.error("Failed to fetch problem:", error);
+    } finally {
+      setIsLoadingProblem(false);
+    }
+  }
 
-  // Handle sending a message
   const handleSendMessage = async () => {
-      if (inputMessage.trim() === "") return;
-      if (!problemSlug) {
-          // Replace alert with a more user-friendly notification (e.g., set an error state and display a message)
-          alert("Please select a problem first."); // Replaced alert with alert for now, can be improved with better UI
-          return;
-      }
-      if (!conversationId) {
-          console.error("Conversation ID is missing!"); // Log error if conversationId is missing
-          return; // Or handle error appropriately, maybe alert user
-      }
+    if (inputMessage.trim() === "" || isTyping) return;
 
+    if (!problemSlug) {
+      alert("Please select a problem first.");
+      return;
+    }
 
-      // Retrieve (or generate) the current user ID
-      const currentUser = getOrCreateUserId();
+    if (!conversationId) {
+      console.error("Missing conversationId. Active convo:", conversationId);
+      alert("Error: No active conversation session. Please refresh or create a new chat.");
+      return;
+    }
 
-      // Create a new user message
-      const newUserMessage: Message = {
-          id: generateUniqueId(),
-          content: inputMessage,
-          sender: "user",
-          timestamp: new Date().toISOString(),
-          read: true,
+    const currentUser = getOrCreateUserId();
+    const newUserMessage: Message = {
+      id: generateUniqueId(),
+      content: inputMessage,
+      sender: "user",
+      timestamp: new Date().toISOString(),
+      read: true,
+    };
+
+    setMessages((prev) => [...prev, newUserMessage]);
+    setInputMessage("");
+
+    setIsTyping(true);
+    try {
+      const chatRequest: ChatRequest = {
+        question: inputMessage,
+        problem_slug: problemSlug,
+        user_id: currentUser,
+        conversation_id: conversationId,
+      };
+      const response = await chatWithAI(chatRequest);
+
+      const aiResponse: Message = {
+        id: generateUniqueId(),
+        content: response.response,
+        sender: "ai",
+        timestamp: new Date().toISOString(),
+        read: false,
       };
 
-      // Update the state with the new user message and clear input
-      setMessages((prev) => [...prev, newUserMessage]);
-      setInputMessage("");
+      setMessages((prev) => [...prev, aiResponse]);
 
-      setIsTyping(true);
-      try {
-          // Send message to backend and get AI response - Now passing conversationId
-          const response = await sendChatMessage(inputMessage, problemSlug, currentUser, conversationId);
-
-          // Create an AI message from the response
-          const aiResponse: Message = {
-              id: generateUniqueId(),
-              content: response.response,
-              sender: "ai",
-              timestamp: new Date().toISOString(),
-              read: false,
-          };
-
-          setIsTyping(false);
-          setMessages((prev) => [...prev, aiResponse]);
-
-          // If response contains a code example, extract it
-          if (response.response.includes("Code Example")) {
-              const codeStart = response.response.indexOf("```python");
-              if (codeStart !== -1) {
-                  const codeEnd = response.response.indexOf("```", codeStart + 3);
-                  if (codeEnd !== -1) {
-                      setCode(response.response.substring(codeStart + 9, codeEnd));
-                  }
-              }
-          } else if (response.response.includes("Hint")) {
-              // If response includes a hint, add it to the hints list
-              setHints((prevHints) => [...prevHints, response.response]);
+      // If response contains a code example, extract it
+      if (response.response.includes("Code Example")) {
+        const codeStart = response.response.indexOf("```python");
+        if (codeStart !== -1) {
+          const codeEnd = response.response.indexOf("```", codeStart + 3);
+          if (codeEnd !== -1) {
+            setCode(response.response.substring(codeStart + 9, codeEnd));
           }
-
-
-      } catch (error: any) { // Type error as 'any' for error
-          console.error("Failed to send message:", error);
-          setIsTyping(false);
-          // User-friendly error message (replace alert with better UI later)
-          alert("Failed to send message. Please try again.");
+        }
+      } else if (response.response.toLowerCase().includes("hint")) {
+        // If response includes a hint, add it to the hints list
+        setHints((prevHints) => [...prevHints, response.response]);
       }
+    } catch (error: any) {
+      console.error("Failed to send message:", error);
+
+      // Restore the input message so the user doesn't lose it
+      setInputMessage(inputMessage);
+
+      if (error.message && error.message.includes("429")) {
+        alert("Rate Limit Reached: You are sending messages too fast. Please wait a moment before trying again.");
+      } else {
+        alert("Failed to send message. Please check your connection and try again.");
+      }
+    } finally {
+      setIsTyping(false);
+    }
   };
 
-  // Handle sending message when Enter key is pressed (without Shift)
   const handleKeyDown = (e: React.KeyboardEvent) => {
-      if (e.key === "Enter" && !e.shiftKey) {
-          e.preventDefault();
-          handleSendMessage();
-      }
-  };
-
-  // Trigger file input for attachments
-  const handleAttachmentClick = () => {
-      fileInputRef.current?.click();
-  };
-
-  // Append file name to message input on file selection
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-      const files = e.target.files;
-      if (files && files.length > 0) {
-          const fileName = files[0].name;
-          setInputMessage((prev) => prev + ` [Attached: ${fileName}]`);
-      }
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      handleSendMessage();
+    }
   };
 
   return (
-    <div className="flex-1 flex flex-col overflow-hidden">
-      {/* Problem Fetch Section */}
-      <div className="p-4">
-        <input
-          type="text"
-          placeholder="Enter LeetCode slug"
-          value={localProblemSlug || ""} // Use localProblemSlug here for input value
-          onChange={(e) => setLocalProblemSlug(e.target.value)} // Update localProblemSlug
-          className="border rounded-sm p-2 w-full mb-2"
-        />
-        <button
-           onClick={() => handleProblemSelect(localProblemSlug || "")} // Use localProblemSlug for problem select
-           className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-sm"
-        
-        >
-          Fetch Problem
-        </button>
-      </div>
+    <div className="flex-1 flex flex-col overflow-hidden bg-background-light dark:bg-background-dark">
+      {/* Search Header */}
+      {!problemSlug && (
+        <div className="p-6 md:p-10 max-w-2xl mx-auto w-full">
+          <div className="bg-white dark:bg-surface-dark p-2 rounded-2xl shadow-xl shadow-primary/5 border border-gray-100 dark:border-gray-800 flex items-center space-x-2">
+            <input
+              type="text"
+              placeholder="Paste LeetCode or Codeforces URL..."
+              value={localProblemSlug || ""}
+              onChange={(e) => setLocalProblemSlug(e.target.value)}
+              className="flex-1 bg-transparent px-4 py-2 focus:outline-hidden text-sm md:text-base"
+            />
+            <button
+              onClick={onFetchProblem}
+              disabled={isLoadingProblem || !localProblemSlug}
+              className="bg-primary hover:bg-primary-dark disabled:opacity-50 text-white px-6 py-2 rounded-xl font-bold transition-all shadow-lg shadow-primary/20 flex items-center space-x-2"
+            >
+              {isLoadingProblem ? (
+                <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              ) : (
+                <Zap className="w-4 h-4" />
+              )}
+              <span>Fetch</span>
+            </button>
+          </div>
+          <p className="mt-4 text-center text-xs text-text-muted-light dark:text-text-muted-dark">
+            Example: https://leetcode.com/problems/two-sum/
+          </p>
+        </div>
+      )}
 
-      {/* Chat Messages Area */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-6">
+      {/* Messages */}
+      <div className="flex-1 overflow-y-auto px-4 md:px-8 py-6 space-y-2">
         {messages.length === 0 ? (
-          // Display a friendly prompt if there are no messages
-          <div className="h-full flex flex-col items-center justify-center text-center p-6">
-            <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center mb-6">
-              <MessageSquare className="h-10 w-10 text-primary dark:text-primary-light" />
+          <div className="h-full flex flex-col items-center justify-center text-center">
+            <div className="w-24 h-24 rounded-3xl bg-primary/10 flex items-center justify-center mb-8 rotate-3">
+              <MessageSquare className="h-12 w-12 text-primary" />
             </div>
-            <h3 className="text-xl font-semibold mb-3">Start a new conversation</h3>
-            <p className="text-text-secondary-light dark:text-text-secondary-dark max-w-md">
-              Type a message below to begin chatting with the AI assistant.
+            <h3 className="text-2xl font-bold mb-4">Start your session</h3>
+            <p className="text-text-secondary-light dark:text-text-secondary-dark max-w-sm leading-relaxed">
+              Paste a problem link above to start a guided learning session with TeachAI.
             </p>
           </div>
         ) : (
-          // Map over messages and render each one
-          <>
+          <div className="max-w-4xl mx-auto w-full">
             {messages.map((message) => (
               <ChatMessage key={message.id} message={message} />
             ))}
             {isTyping && (
-              <div className="flex items-start">
-                <div className="shrink-0 h-8 w-8 rounded-full flex items-center justify-center bg-gray-300 dark:bg-gray-700 mr-2">
-                  <MessageSquare className="h-4 w-4 text-gray-700 dark:text-gray-300" />
+              <div className="flex items-start mb-6">
+                <div className="shrink-0 w-9 h-9 rounded-xl bg-white dark:bg-surface-dark border border-gray-200 dark:border-gray-700 flex items-center justify-center mr-3 shadow-sm">
+                  <img src={robot} alt="..." className="w-full h-full object-cover opacity-50 grayscale" />
                 </div>
-                <div className="bg-surface-alt-light dark:bg-surface-alt-dark rounded-2xl rounded-bl-sm p-4 max-w-[80%] shadow-xs">
-                  <div className="flex space-x-2">
-                    <div
-                      className="w-2 h-2 bg-primary dark:bg-primary-light rounded-full animate-bounce"
-                      style={{ animationDelay: "0ms" }}
-                    ></div>
-                    <div
-                      className="w-2 h-2 bg-primary dark:bg-primary-light rounded-full animate-bounce"
-                      style={{ animationDelay: "150ms" }}
-                    ></div>
-                    <div
-                      className="w-2 h-2 bg-primary dark:bg-primary-light rounded-full animate-bounce"
-                      style={{ animationDelay: "300ms" }}
-                    ></div>
+                <div className="bg-surface-alt-light dark:bg-surface-alt-dark/40 backdrop-blur-sm rounded-2xl rounded-tl-none p-4 shadow-sm border border-gray-100 dark:border-gray-800">
+                  <div className="flex space-x-1.5">
+                    <div className="w-1.5 h-1.5 bg-primary/40 rounded-full animate-bounce [animation-delay:-0.3s]"></div>
+                    <div className="w-1.5 h-1.5 bg-primary/40 rounded-full animate-bounce [animation-delay:-0.15s]"></div>
+                    <div className="w-1.5 h-1.5 bg-primary/40 rounded-full animate-bounce"></div>
                   </div>
                 </div>
               </div>
             )}
             <div ref={messagesEndRef} />
-          </>
+          </div>
         )}
       </div>
 
-      {/* Input Section */}
-      {/* Input Section */}
-      <div className="border-t border-gray-200 dark:border-gray-700 bg-surface-light dark:bg-surface-dark p-4">
-                <div className="flex items-end space-x-2">
-                    <div className="flex-1 rounded-xl border border-gray-200 dark:border-gray-600 bg-white dark:bg-surface-alt-dark overflow-hidden shadow-card-light dark:shadow-card-dark transition-all">
-                        <textarea
-                            ref={textareaRef}
-                            value={inputMessage}
-                            onChange={(e) => setInputMessage(e.target.value)}
-                            onKeyDown={handleKeyDown}
-                            placeholder="Type your message..."
-                            className="w-full p-4 focus:outline-hidden bg-transparent resize-none min-h-[56px] max-h-[160px] text-text-primary-light dark:text-text-primary-dark"
-                            style={{ height: "56px" }}
-                            aria-label="Message input"
-                        />
-                        <div className="flex justify-between items-center px-4 py-2 border-t border-gray-200 dark:border-gray-600">
-                            <button
-                                onClick={handleAttachmentClick}
-                                className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-                                aria-label="Attach file"
-                            >
-                                {/* Uncomment and add the Paperclip icon if needed */}
-                                {/* <Paperclip className="h-5 w-5 text-text-secondary-light dark:text-text-secondary-dark" /> */}
-                            </button>
-                            <input
-                                ref={fileInputRef}
-                                type="file"
-                                className="hidden"
-                                onChange={handleFileChange}
-                            />
-                            <button
-                                onClick={handleSendMessage}
-                                className="p-2 rounded-full bg-primary hover:bg-primary-light active:bg-primary-dark text-white transition-colors"
-                                aria-label="Send message"
-                            >
-                                <Send className="h-5 w-5" />
-                            </button>
-                        </div>
-                    </div>
+      {/* Input */}
+      {problemSlug && (
+        <div className="p-4 md:p-6 bg-gradient-to-t from-background-light dark:from-background-dark via-background-light/80 dark:via-background-dark/80 to-transparent">
+          <div className="max-w-4xl mx-auto w-full relative">
+            <div className="bg-white dark:bg-surface-dark rounded-3xl border border-gray-200 dark:border-gray-800 shadow-2xl focus-within:border-primary/50 transition-all duration-300">
+              <textarea
+                ref={textareaRef}
+                value={inputMessage}
+                onChange={(e) => setInputMessage(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder="Ask a question or explain your approach..."
+                className="w-full p-6 focus:outline-hidden bg-transparent resize-none min-h-[80px] max-h-[200px] text-sm md:text-base leading-relaxed"
+                rows={1}
+              />
+              <div className="flex items-center justify-between px-6 py-4 border-t border-gray-50 dark:border-gray-800/50">
+                <div className="flex items-center text-xs text-text-muted-light dark:text-text-muted-dark font-medium">
+                  <Zap className="w-3.5 h-3.5 mr-2 text-primary" />
+                  AI Tutor is active
                 </div>
+                <button
+                  onClick={handleSendMessage}
+                  disabled={!inputMessage.trim() || isTyping}
+                  className="bg-primary hover:bg-primary-dark disabled:opacity-30 disabled:hover:bg-primary text-white p-2.5 rounded-2xl transition-all shadow-lg shadow-primary/20 shadow-primary/25 active:scale-95"
+                >
+                  <Send className="w-5 h-5" />
+                </button>
+              </div>
             </div>
+          </div>
         </div>
-    );
+      )}
+    </div>
+  );
 }
 
 export default MainPage;
