@@ -5,23 +5,23 @@ export default {
   theme: {
     extend: {
       colors: {
-        // Primary colors
+        // Primary colors (Yellow/Amber)
         primary: {
-          DEFAULT: '#4F46E5', // Indigo 600
-          light: '#818CF8',   // Indigo 400
-          dark: '#3730A3',    // Indigo 800
+          DEFAULT: '#F59E0B', // Amber 500
+          light: '#FCD34D',   // Amber 300
+          dark: '#B45309',    // Amber 700
         },
-        // Secondary colors
+        // Secondary colors (Emerald - kept same)
         secondary: {
           DEFAULT: '#10B981', // Emerald 500
           light: '#34D399',   // Emerald 400
           dark: '#059669',    // Emerald 600
         },
-        // Accent colors
+        // Accent colors (Indigo)
         accent: {
-          DEFAULT: '#F59E0B', // Amber 500
-          light: '#FBBF24',   // Amber 400
-          dark: '#D97706',    // Amber 600
+          DEFAULT: '#6366F1', // Indigo 500
+          light: '#818CF8',   // Indigo 400
+          dark: '#4338CA',    // Indigo 700
         },
         // Background colors
         background: {

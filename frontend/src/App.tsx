@@ -1,16 +1,18 @@
 // App.tsx
 import { useState, useEffect } from "react";
 import { Download, Settings, Menu } from "lucide-react";
+import { Panel, Group } from "react-resizable-panels";
 // Import types for messages and conversations
 import { Message, Conversation } from "./types";
 // Utility functions for formatting dates and generating IDs
-import { formatDate, generateUniqueId } from "./utils";
+import { formatDate, generateUniqueId, getOrCreateUserId } from "./utils";
 // Import child components
 import MainPage from "./components/MainPage";
 import ChatHistorySidebar from "./components/ChatHistorySidebar";
 import RightSidebar from "./components/RightSidebar";
 import LandingPage from "./components/LandingPage";
-import { fetchProblem, fetchProblemSummary } from "./services/api";
+import ResizeHandle from "./components/ResizeHandle";
+import { fetchProblem, fetchProblemSummary, chatWithAI, ChatRequest } from "./services/api";
 import { v4 as uuidv4 } from "uuid";
 
 function App() {
@@ -25,6 +27,7 @@ function App() {
   // State for chat messages and input
   const [messages, setMessages] = useState<Message[]>([]);
   const [isTyping, setIsTyping] = useState(false);
+  const [inputMessage, setInputMessage] = useState("");
 
   // State to toggle sidebar visibility
   const [showSidebar, setShowSidebar] = useState(true);
@@ -89,6 +92,7 @@ function App() {
     setActiveConversationId(newConversation.id);
     setMessages([]);
     setProblemSlug(null);
+    setInputMessage("");
     return newConversation;
   };
 
@@ -180,112 +184,189 @@ function App() {
     }
   };
 
-  const activeConversation = conversations.find(
-    (c) => c.id === activeConversationId
-  ); // Get active conversation object
+  // Centralized Send Message Logic
+  const handleSendMessage = async (content: string) => {
+    if (isTyping || !content.trim()) return;
+
+    if (!problemSlug) {
+      alert("Please select a problem first.");
+      return;
+    }
+
+    const currentConvo = conversations.find(c => c.id === activeConversationId);
+    if (!activeConversationId || !currentConvo) {
+      console.error("Missing conversationId.");
+      alert("Error: No active conversation session.");
+      return;
+    }
+    const conversationUUID = currentConvo.conversationId;
+
+    const currentUser = getOrCreateUserId();
+    const newUserMessage: Message = {
+      id: generateUniqueId(),
+      content: content,
+      sender: "user",
+      timestamp: new Date().toISOString(),
+      read: true,
+    };
+
+    setMessages((prev) => [...prev, newUserMessage]);
+    setInputMessage(""); // Clear the input field
+    setIsTyping(true);
+
+    try {
+      const chatRequest: ChatRequest = {
+        question: content,
+        problem_slug: problemSlug,
+        user_id: currentUser,
+        conversation_id: conversationUUID,
+      };
+      const response = await chatWithAI(chatRequest);
+
+      const aiResponse: Message = {
+        id: generateUniqueId(),
+        content: response.response,
+        sender: "ai",
+        timestamp: new Date().toISOString(),
+        read: false,
+      };
+
+      setMessages((prev) => [...prev, aiResponse]);
+
+      // If response contains a code example, extract it
+      if (response.response.includes("Code Example")) {
+        const codeStart = response.response.indexOf("```python");
+        if (codeStart !== -1) {
+          const codeEnd = response.response.indexOf("```", codeStart + 3);
+          if (codeEnd !== -1) {
+            setCode(response.response.substring(codeStart + 9, codeEnd));
+          }
+        }
+      } else if (response.response.toLowerCase().includes("hint")) {
+        // If response includes a hint, add it to the hints list
+        setHints((prevHints) => [...prevHints, response.response]);
+      }
+    } catch (error: any) {
+      console.error("Failed to send message:", error);
+      // Restore the message in case of failure
+      setInputMessage(content);
+      if (error.message && error.message.includes("429")) {
+        alert("Rate Limit Reached: You are sending messages too fast. Please wait a moment before trying again.");
+      } else {
+        alert("Failed to send message. Please check your connection and try again.");
+      }
+    } finally {
+      setIsTyping(false);
+    }
+  };
 
   if (showLanding) {
     return <LandingPage onStart={() => setShowLanding(false)} />;
   }
 
   return (
-    <div className="flex h-screen bg-background-light dark:bg-background-dark text-text-primary-light dark:text-text-primary-dark transition-colors duration-200 font-sans">
-      {/* Sidebar: Displays list of conversations and a button to create new ones */}
-      <ChatHistorySidebar
-        conversations={conversations}
-        activeConversationId={activeConversationId}
-        onSelectConversation={(id) => {
-          handleSelectConversation(id);
-          setShowLanding(false);
-        }}
-        onCreateConversation={() => {
-          handleCreateConversation();
-          setShowLanding(false);
-        }}
-      />
-      {/* Overlay for mobile devices when sidebar is open */}
-      {showSidebar && (
-        <div
-          className="md:hidden fixed inset-0 bg-black bg-opacity-50 z-20"
-          onClick={toggleSidebar}
-          aria-hidden="true"
-        ></div>
-      )}
-
-      {/* Main Chat Area */}
-      <div className="flex-1 flex flex-col relative">
-        {/* Top Header */}
-        <div className="h-16 bg-surface-light dark:bg-surface-dark border-b border-gray-200 dark:border-gray-700 px-4 flex items-center justify-between sticky top-0 z-10 shadow-card-light dark:shadow-card-dark">
-          <div className="flex items-center">
-            <button
-              onClick={toggleSidebar}
-              className="p-2 mr-2 rounded-full hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark transition-colors"
-              aria-label="Toggle sidebar"
-            >
-              <Menu className="h-5 w-5" />
-            </button>
-            <h2 className="text-lg font-semibold truncate max-w-[200px] md:max-w-md">
+    <div className="h-screen flex flex-col bg-background-light dark:bg-background-dark text-text-primary-light dark:text-text-primary-dark transition-colors duration-200 font-sans overflow-hidden">
+      {/* Top Header - Now global for consistency */}
+      <header className="h-16 bg-surface-light dark:bg-surface-dark border-b border-gray-200 dark:border-gray-800 px-6 flex items-center justify-between z-20 shadow-sm shrink-0">
+        <div className="flex items-center space-x-4">
+          <button
+            onClick={toggleSidebar}
+            className="p-2 rounded-xl hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark transition-all text-text-secondary-light dark:text-text-secondary-dark hover:text-primary"
+            aria-label="Toggle sidebar"
+          >
+            <Menu className="h-5 w-5" />
+          </button>
+          <div>
+            <h2 className="text-lg font-bold tracking-tight text-text-primary-light dark:text-text-primary-dark truncate max-w-[200px] md:max-w-md">
               {activeConversationId
                 ? conversations.find((c) => c.id === activeConversationId)
-                  ?.title || "Chat"
-                : "New Conversation"}
+                  ?.title || "Chat Session"
+                : "New learning session"}
             </h2>
-          </div>
-          <div className="flex items-center space-x-2">
-            <button
-              onClick={() => setShowLanding(true)}
-              className="px-3 py-1.5 text-xs font-semibold bg-primary/10 text-primary hover:bg-primary/20 rounded-lg transition-colors border border-primary/20"
-            >
-              Home
-            </button>
-            <div className="flex space-x-1">
-              <button
-                onClick={handleExportChat}
-                disabled={!activeConversationId}
-                className={`p-2 rounded-full transition-colors ${activeConversationId
-                  ? "hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark text-text-secondary-light dark:text-text-secondary-dark"
-                  : "text-text-muted-light dark:text-text-muted-dark cursor-not-allowed opacity-50"
-                  }`}
-                aria-label="Export chat"
-                title="Export chat"
-              >
-                <Download className="h-5 w-5" />
-              </button>
-              <button
-                className="p-2 rounded-full hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark transition-colors"
-                aria-label="Settings"
-                title="Settings"
-              >
-                <Settings className="h-5 w-5 text-text-secondary-light dark:text-text-secondary-dark" />
-              </button>
+            <div className="flex items-center text-[10px] uppercase font-bold tracking-widest text-primary/70">
+              <span className="w-1.5 h-1.5 rounded-full bg-primary mr-1.5 animate-pulse"></span>
+              Gemini 2.0 Flash
             </div>
           </div>
         </div>
 
-        <div className="flex-1 flex overflow-hidden">
-          {/* Main Chat Component */}
-          <MainPage
-            messages={messages}
-            setMessages={setMessages}
-            isTyping={isTyping}
-            setIsTyping={setIsTyping}
-            problemSlug={problemSlug}
-            setProblemSlug={setProblemSlug}
-            hints={hints}
-            setHints={setHints}
-            code={code}
-            setCode={setCode}
-            handleProblemSelect={async (slug) => {
-              await handleProblemSelect(slug);
-              setShowLanding(false);
-            }}
-            conversationId={activeConversation?.conversationId} // Pass conversationId prop here
-          />
-
-          {/* Right Sidebar Component*/}
-          <RightSidebar code={code} setCode={setCode} />
-
+        <div className="flex items-center space-x-3">
+          <button
+            onClick={() => setShowLanding(true)}
+            className="px-4 py-2 text-xs font-bold bg-surface-alt-light dark:bg-surface-alt-dark text-text-secondary-light dark:text-text-secondary-dark hover:text-primary rounded-xl transition-all border border-gray-200 dark:border-gray-700"
+          >
+            Home
+          </button>
+          <div className="h-4 w-[1px] bg-gray-200 dark:bg-gray-800 mx-1"></div>
+          <button
+            onClick={handleExportChat}
+            disabled={!activeConversationId}
+            className="p-2.5 rounded-xl hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark text-text-secondary-light dark:text-text-secondary-dark hover:text-primary transition-all disabled:opacity-30"
+            title="Export chat"
+          >
+            <Download className="h-5 w-5" />
+          </button>
+          <button
+            className="p-2.5 rounded-xl hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark text-text-secondary-light dark:text-text-secondary-dark hover:text-primary transition-all"
+            title="Settings"
+          >
+            <Settings className="h-5 w-5" />
+          </button>
         </div>
+      </header>
+
+      <div className="flex-1 overflow-hidden">
+        <Group orientation="horizontal">
+          {/* Sidebar Panel */}
+          {showSidebar && (
+            <Panel defaultSize={20} minSize={15} maxSize={30} collapsible={true}>
+              <ChatHistorySidebar
+                conversations={conversations}
+                activeConversationId={activeConversationId}
+                onSelectConversation={(id) => {
+                  handleSelectConversation(id);
+                  setShowLanding(false);
+                }}
+                onCreateConversation={() => {
+                  handleCreateConversation();
+                  setShowLanding(false);
+                }}
+              />
+            </Panel>
+          )}
+
+          {showSidebar && <ResizeHandle />}
+
+          {/* Main Chat Panel */}
+          <Panel minSize={30}>
+            <MainPage
+              messages={messages}
+              setMessages={setMessages}
+              isTyping={isTyping}
+              setIsTyping={setIsTyping}
+              inputMessage={inputMessage}
+              setInputMessage={setInputMessage}
+              problemSlug={problemSlug}
+              setProblemSlug={setProblemSlug}
+              hints={hints}
+              setHints={setHints}
+              code={code}
+              setCode={setCode}
+              handleProblemSelect={async (slug) => {
+                await handleProblemSelect(slug);
+                setShowLanding(false);
+              }}
+              onSendMessage={handleSendMessage}
+            />
+          </Panel>
+
+          <ResizeHandle />
+
+          {/* Right Sidebar Panel */}
+          <Panel defaultSize={30} minSize={20} collapsible={true}>
+            <RightSidebar code={code} setCode={setCode} onSendMessage={handleSendMessage} />
+          </Panel>
+        </Group>
       </div>
     </div>
   );

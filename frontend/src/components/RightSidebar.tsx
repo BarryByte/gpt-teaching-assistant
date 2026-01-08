@@ -7,13 +7,14 @@ import { cn } from "../utils"; // Assuming cn is in utils or defined here
 interface RightSidebarProps {
   code: string;
   setCode: React.Dispatch<React.SetStateAction<string>>;
+  onSendMessage: (content: string) => Promise<void>;
 }
 
-const RightSidebar = ({ code, setCode }: RightSidebarProps) => {
+const RightSidebar = ({ code, setCode, onSendMessage }: RightSidebarProps) => {
   const [activeTab, setActiveTab] = useState<"hints" | "editor" | "help">("editor");
 
   return (
-    <div className="hidden lg:flex flex-col w-[400px] border-l border-gray-200 dark:border-gray-800 bg-surface-light dark:bg-surface-dark h-full shadow-2xl z-10">
+    <div className="hidden lg:flex flex-col w-full border-l border-gray-200 dark:border-gray-800 bg-surface-light dark:bg-surface-dark h-full shadow-2xl z-10">
       {/* Tabs Header */}
       <div className="flex border-b border-gray-200 dark:border-gray-800">
         <TabButton
@@ -47,8 +48,8 @@ const RightSidebar = ({ code, setCode }: RightSidebarProps) => {
             />
           </div>
         ) : (
-          <div className="h-full overflow-y-auto p-6">
-            <TabContent activeTab={activeTab === "hints" ? "hints" : "help"} />
+          <div className="h-full overflow-y-auto p-6 scrollbar-thin scrollbar-thumb-gray-200 dark:scrollbar-thumb-gray-800">
+            <TabContent activeTab={activeTab === "hints" ? "hints" : "help"} onSendMessage={onSendMessage} />
           </div>
         )}
       </div>

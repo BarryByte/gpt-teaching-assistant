@@ -5,116 +5,86 @@ import {
   HelpCircle,
   ExternalLink,
   ArrowRight,
+  Zap,
 } from "lucide-react";
 
 interface TabContentProps {
   activeTab: "hints" | "solutions" | "help";
+  onSendMessage: (content: string) => Promise<void>;
 }
 
-const TabContent: React.FC<TabContentProps> = ({ activeTab }) => {
-  const handleCopyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text).then(() => {
-      alert(`Copied to clipboard: ${text}`); // Basic feedback - can be improved
-    }).catch(err => {
-      console.error("Failed to copy text: ", err);
-      alert("Failed to copy text to clipboard.");
-    });
+const TabContent: React.FC<TabContentProps> = ({ activeTab, onSendMessage }) => {
+  const handleHintClick = (text: string) => {
+    onSendMessage(text);
   };
 
   if (activeTab === "hints") {
     return (
-      <div className="space-y-5">
-        <h3 className="text-lg font-semibold flex items-center">
-          <Lightbulb className="h-5 w-5 mr-2 text-accent" />
-          DSA Guidance Prompts
-        </h3>
-        <div className="space-y-4">
-          <div className="bg-accent/10 dark:bg-accent/5 p-4 rounded-xl border border-accent/20 dark:border-accent/10">
-            <h4 className="font-medium text-accent-dark dark:text-accent-light mb-2">
-              Try asking about:
+      <div className="space-y-6 p-4">
+        <div className="flex items-center justify-between">
+          <h3 className="text-lg font-black flex items-center text-text-primary-light dark:text-text-primary-dark tracking-tight">
+            <Lightbulb className="h-5 w-5 mr-3 text-primary" />
+            Adaptive Hints
+          </h3>
+          <span className="text-[10px] font-black px-2 py-0.5 rounded-md bg-primary text-background-dark uppercase tracking-widest">Beta</span>
+        </div>
+
+        <div className="space-y-5">
+          <div className="bg-surface-alt-light dark:bg-surface-alt-dark/40 p-5 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm relative overflow-hidden group">
+            <div className="absolute top-0 right-0 p-2 opacity-5">
+              <Zap className="w-12 h-12 text-primary rotate-12" />
+            </div>
+            <h4 className="font-bold text-[10px] text-primary uppercase tracking-[0.2em] mb-4 flex items-center">
+              <span className="w-2 h-0.5 bg-primary mr-2"></span>
+              Strategic Questions
             </h4>
-            <ul className="text-sm text-text-primary-light dark:text-text-primary-dark space-y-3">
-              <li
-                className="cursor-pointer hover:text-primary dark:hover:text-primary-light transition-colors flex items-center"
-                onClick={() => handleCopyToClipboard("How can I optimize the time complexity for this problem?")}
-              >
-                <ArrowRight className="h-3 w-3 mr-2 text-accent" />
-                <span>"How can I optimize the time complexity for this problem?"</span>
-              </li>
-              <li
-                className="cursor-pointer hover:text-primary dark:hover:text-primary-light transition-colors flex items-center"
-                onClick={() => handleCopyToClipboard("What approach should I take for this graph traversal?")}
-              >
-                <ArrowRight className="h-3 w-3 mr-2 text-accent" />
-                <span>"What approach should I take for this graph traversal?"</span>
-              </li>
-              <li
-                className="cursor-pointer hover:text-primary dark:hover:text-primary-light transition-colors flex items-center"
-                onClick={() => handleCopyToClipboard("Can you help me understand the trade-offs between recursion and iteration?")}
-              >
-                <ArrowRight className="h-3 w-3 mr-2 text-accent" />
-                <span>"Can you help me understand the trade-offs between recursion and iteration?"</span>
-              </li>
+            <ul className="space-y-2.5 relative z-10">
+              {[
+                "Verify the time complexity of my current approach",
+                "What edge cases should I handle first?",
+                "Is there a more space-efficient way to solve this?",
+                "Explain the core intuition behind the optimal solution."
+              ].map((hint, idx) => (
+                <li
+                  key={idx}
+                  className="group cursor-pointer bg-white dark:bg-background-dark/60 hover:bg-primary text-text-primary-light dark:text-text-primary-dark hover:text-background-dark border border-gray-100 dark:border-gray-800 hover:border-primary p-3.5 rounded-xl transition-all duration-300 shadow-sm hover:shadow-lg hover:shadow-primary/20 flex items-center justify-between"
+                  onClick={() => handleHintClick(hint)}
+                >
+                  <span className="text-xs font-bold leading-relaxed">{hint}</span>
+                  <ArrowRight className="h-4 w-4 opacity-0 group-hover:opacity-100 transition-all -translate-x-2 group-hover:translate-x-0 group-hover:block hidden md:block" />
+                </li>
+              ))}
             </ul>
           </div>
 
-          <div className="bg-primary/10 dark:bg-primary/5 p-4 rounded-xl border border-primary/20 dark:border-primary/10">
-            <h4 className="font-medium text-primary-dark dark:text-primary-light mb-2">
-              Current DSA topics:
+          <div className="bg-surface-alt-light dark:bg-surface-alt-dark/40 p-5 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm relative overflow-hidden">
+            <h4 className="font-bold text-[10px] text-primary uppercase tracking-[0.2em] mb-4 flex items-center">
+              <span className="w-2 h-0.5 bg-primary mr-2"></span>
+              Concept Deep Dives
             </h4>
-            <ul className="text-sm text-text-primary-light dark:text-text-primary-dark space-y-3">
-              <li
-                className="cursor-pointer hover:text-primary dark:hover:text-primary-light transition-colors flex items-center"
-                onClick={() => handleCopyToClipboard("Explain dynamic programming with an example")}
-              >
-                <ArrowRight className="h-3 w-3 mr-2 text-primary" />
-                <span>"Explain dynamic programming with an example"</span>
-              </li>
-              <li
-                className="cursor-pointer hover:text-primary dark:hover:text-primary-light transition-colors flex items-center"
-                onClick={() => handleCopyToClipboard("How do I analyze the time and space complexity of an algorithm?")}
-              >
-                <ArrowRight className="h-3 w-3 mr-2 text-primary" />
-                <span>"How do I analyze the time and space complexity of an algorithm?"</span>
-              </li>
-              <li
-                className="cursor-pointer hover:text-primary dark:hover:text-primary-light transition-colors flex items-center"
-                onClick={() => handleCopyToClipboard("What are common pitfalls when implementing tree traversals?")}
-              >
-                <ArrowRight className="h-3 w-3 mr-2 text-primary" />
-                <span>"What are common pitfalls when implementing tree traversals?"</span>
-              </li>
+            <ul className="space-y-2.5">
+              {[
+                "Visualize a real-world analogy for this problem",
+                "Break down the recursion tree for this scenario",
+                "Compare DFS vs BFS for this specific constraint"
+              ].map((hint, idx) => (
+                <li
+                  key={idx}
+                  className="group cursor-pointer bg-white dark:bg-background-dark/60 hover:bg-primary text-text-primary-light dark:text-text-primary-dark hover:text-background-dark border border-gray-100 dark:border-gray-800 hover:border-primary p-3.5 rounded-xl transition-all duration-300 shadow-sm hover:shadow-lg hover:shadow-primary/20 flex items-center justify-between"
+                  onClick={() => handleHintClick(hint)}
+                >
+                  <span className="text-xs font-bold leading-relaxed">{hint}</span>
+                  <ArrowRight className="h-4 w-4 opacity-0 group-hover:opacity-100 transition-all -translate-x-2 group-hover:translate-x-0 group-hover:block hidden md:block" />
+                </li>
+              ))}
             </ul>
           </div>
+        </div>
 
-          <div className="bg-secondary/10 dark:bg-secondary/5 p-4 rounded-xl border border-secondary/20 dark:border-secondary/10">
-            <h4 className="font-medium text-secondary-dark dark:text-secondary-light mb-2">
-              Deep Dive Prompts:
-            </h4>
-            <ul className="text-sm text-text-primary-light dark:text-text-primary-dark space-y-3">
-              <li
-                className="cursor-pointer hover:text-primary dark:hover:text-primary-light transition-colors flex items-center"
-                onClick={() => handleCopyToClipboard("Compare iterative and recursive approaches for this problem")}
-              >
-                <ArrowRight className="h-3 w-3 mr-2 text-secondary" />
-                <span>"Compare iterative and recursive approaches for this problem"</span>
-              </li>
-              <li
-                className="cursor-pointer hover:text-primary dark:hover:text-primary-light transition-colors flex items-center"
-                onClick={() => handleCopyToClipboard("Outline a step-by-step plan to debug this algorithm")}
-              >
-                <ArrowRight className="h-3 w-3 mr-2 text-secondary" />
-                <span>"Outline a step-by-step plan to debug this algorithm"</span>
-              </li>
-              <li
-                className="cursor-pointer hover:text-primary dark:hover:text-primary-light transition-colors flex items-center"
-                onClick={() => handleCopyToClipboard("Discuss how to refine the solution to handle edge cases")}
-              >
-                <ArrowRight className="h-3 w-3 mr-2 text-secondary" />
-                <span>"Discuss how to refine the solution to handle edge cases"</span>
-              </li>
-            </ul>
-          </div>
+        <div className="p-4 bg-primary/10 border border-primary/20 rounded-2xl">
+          <p className="text-[10px] text-primary/80 font-bold leading-relaxed italic">
+            Tip: Clicking a card will automatically send the query to BrainBox. These hints focus on guiding your thought process.
+          </p>
         </div>
       </div>
     );

@@ -2,8 +2,6 @@ import React, { useEffect, useRef, useState } from "react";
 import { Send, MessageSquare, Zap } from "lucide-react";
 import ChatMessage from "./ChatMessage";
 import { Message } from "../types";
-import { generateUniqueId, getOrCreateUserId } from "../utils";
-import { chatWithAI, ChatRequest } from "../services/api";
 import robot from "../assets/robot.png";
 
 interface MainPageProps {
@@ -11,6 +9,8 @@ interface MainPageProps {
   setMessages: React.Dispatch<React.SetStateAction<Message[]>>;
   isTyping: boolean;
   setIsTyping: React.Dispatch<React.SetStateAction<boolean>>;
+  inputMessage: string;
+  setInputMessage: React.Dispatch<React.SetStateAction<string>>;
   problemSlug: string | null;
   setProblemSlug: React.Dispatch<React.SetStateAction<string | null>>;
   hints: string[];
@@ -18,27 +18,28 @@ interface MainPageProps {
   code: string;
   setCode: React.Dispatch<React.SetStateAction<string>>;
   handleProblemSelect: (slug: string) => Promise<void>;
-  conversationId: string | undefined;
+  onSendMessage: (content: string) => Promise<void>;
 }
 
 function MainPage({
   messages,
-  setMessages,
+  setMessages: _setMessages,
   isTyping,
-  setIsTyping,
+  setIsTyping: _setIsTyping,
+  inputMessage,
+  setInputMessage,
   problemSlug,
   setProblemSlug: _setProblemSlug,
   hints: _hints,
-  setHints,
+  setHints: _setHints,
   code: _code,
-  setCode,
+  setCode: _setCode,
   handleProblemSelect,
-  conversationId,
+  onSendMessage,
 }: MainPageProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  const [inputMessage, setInputMessage] = useState<string>("");
   const [localProblemSlug, setLocalProblemSlug] = useState<string | null>(problemSlug);
   const [isLoadingProblem, setIsLoadingProblem] = useState(false);
 
@@ -69,85 +70,24 @@ function MainPage({
     }
   }
 
-  const handleSendMessage = async () => {
-    if (inputMessage.trim() === "" || isTyping) return;
-
-    if (!problemSlug) {
-      alert("Please select a problem first.");
-      return;
-    }
-
-    if (!conversationId) {
-      console.error("Missing conversationId. Active convo:", conversationId);
-      alert("Error: No active conversation session. Please refresh or create a new chat.");
-      return;
-    }
-
-    const currentUser = getOrCreateUserId();
-    const newUserMessage: Message = {
-      id: generateUniqueId(),
-      content: inputMessage,
-      sender: "user",
-      timestamp: new Date().toISOString(),
-      read: true,
-    };
-
-    setMessages((prev) => [...prev, newUserMessage]);
-    setInputMessage("");
-
-    setIsTyping(true);
+  const handleSendClick = async () => {
+    if (!inputMessage.trim() || isTyping) return;
+    const msg = inputMessage;
+    setInputMessage(""); // Clear immediately for better UX
     try {
-      const chatRequest: ChatRequest = {
-        question: inputMessage,
-        problem_slug: problemSlug,
-        user_id: currentUser,
-        conversation_id: conversationId,
-      };
-      const response = await chatWithAI(chatRequest);
-
-      const aiResponse: Message = {
-        id: generateUniqueId(),
-        content: response.response,
-        sender: "ai",
-        timestamp: new Date().toISOString(),
-        read: false,
-      };
-
-      setMessages((prev) => [...prev, aiResponse]);
-
-      // If response contains a code example, extract it
-      if (response.response.includes("Code Example")) {
-        const codeStart = response.response.indexOf("```python");
-        if (codeStart !== -1) {
-          const codeEnd = response.response.indexOf("```", codeStart + 3);
-          if (codeEnd !== -1) {
-            setCode(response.response.substring(codeStart + 9, codeEnd));
-          }
-        }
-      } else if (response.response.toLowerCase().includes("hint")) {
-        // If response includes a hint, add it to the hints list
-        setHints((prevHints) => [...prevHints, response.response]);
-      }
-    } catch (error: any) {
-      console.error("Failed to send message:", error);
-
-      // Restore the input message so the user doesn't lose it
-      setInputMessage(inputMessage);
-
-      if (error.message && error.message.includes("429")) {
-        alert("Rate Limit Reached: You are sending messages too fast. Please wait a moment before trying again.");
-      } else {
-        alert("Failed to send message. Please check your connection and try again.");
-      }
-    } finally {
-      setIsTyping(false);
+      await onSendMessage(msg);
+    } catch (error) {
+      // If failed, restore? App.tsx handles the alert.
+      // We could restore inputMessage if we passed a callback or something, but let's keep it simple.
+      console.error("MainPage send error", error);
+      setInputMessage(msg); // Restore on error
     }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
-      handleSendMessage();
+      handleSendClick();
     }
   };
 
@@ -239,7 +179,7 @@ function MainPage({
                   AI Tutor is active
                 </div>
                 <button
-                  onClick={handleSendMessage}
+                  onClick={handleSendClick}
                   disabled={!inputMessage.trim() || isTyping}
                   className="bg-primary hover:bg-primary-dark disabled:opacity-30 disabled:hover:bg-primary text-white p-2.5 rounded-2xl transition-all shadow-lg shadow-primary/20 shadow-primary/25 active:scale-95"
                 >
