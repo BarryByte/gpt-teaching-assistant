@@ -92,7 +92,7 @@ function MainPage({
   };
 
   return (
-    <div className="flex-1 flex flex-col overflow-hidden bg-background-light dark:bg-background-dark">
+    <div className="h-full flex-1 flex flex-col no-scrollbar overflow-hidden bg-background-light dark:bg-background-dark">
       {/* Search Header */}
       {!problemSlug && (
         <div className="p-6 md:p-10 max-w-2xl mx-auto w-full">

@@ -1,7 +1,6 @@
 // App.tsx
 import { useState, useEffect } from "react";
-import { Download, Settings, Menu } from "lucide-react";
-import { Panel, Group } from "react-resizable-panels";
+import { Download, Settings, Menu, PanelLeft } from "lucide-react";
 // Import types for messages and conversations
 import { Message, Conversation } from "./types";
 // Utility functions for formatting dates and generating IDs
@@ -11,7 +10,6 @@ import MainPage from "./components/MainPage";
 import ChatHistorySidebar from "./components/ChatHistorySidebar";
 import RightSidebar from "./components/RightSidebar";
 import LandingPage from "./components/LandingPage";
-import ResizeHandle from "./components/ResizeHandle";
 import { fetchProblem, fetchProblemSummary, chatWithAI, ChatRequest } from "./services/api";
 import { v4 as uuidv4 } from "uuid";
 
@@ -36,6 +34,20 @@ function App() {
   const [problemSlug, setProblemSlug] = useState<string | null>(null);
   const [hints, setHints] = useState<string[]>([]);
   const [code, setCode] = useState<string>("");
+
+  // State for resizable right sidebar
+  const DEFAULT_RIGHT_SIDEBAR_WIDTH = 400;
+  const MIN_RIGHT_SIDEBAR_WIDTH = 100; // Below this, collapse
+  const [rightSidebarWidth, setRightSidebarWidth] = useState(DEFAULT_RIGHT_SIDEBAR_WIDTH);
+  const [isRightSidebarCollapsed, setIsRightSidebarCollapsed] = useState(false);
+  const [isResizing, setIsResizing] = useState(false);
+
+  // Theme state
+  const [isDarkMode, setIsDarkMode] = useState(() => {
+    const savedTheme = localStorage.getItem("theme");
+    return savedTheme ? savedTheme === "dark" : true; // Default to dark mode
+  });
+  const [showSettings, setShowSettings] = useState(false);
 
   // Load saved conversations from localStorage on mount
   useEffect(() => {
@@ -75,6 +87,49 @@ function App() {
   useEffect(() => {
     localStorage.setItem("conversations", JSON.stringify(conversations));
   }, [conversations]);
+
+  // Apply theme class to HTML element
+  useEffect(() => {
+    if (isDarkMode) {
+      document.documentElement.classList.add("dark");
+    } else {
+      document.documentElement.classList.remove("dark");
+    }
+    localStorage.setItem("theme", isDarkMode ? "dark" : "light");
+  }, [isDarkMode]);
+
+  // Handle sidebar resize with mouse events
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isResizing) return;
+      // Calculate new width from right edge of window
+      const newWidth = window.innerWidth - e.clientX;
+      if (newWidth < MIN_RIGHT_SIDEBAR_WIDTH) {
+        setIsRightSidebarCollapsed(true);
+        setIsResizing(false);
+      } else {
+        setRightSidebarWidth(Math.min(newWidth, window.innerWidth * 0.6)); // Max 60% of window
+      }
+    };
+
+    const handleMouseUp = () => {
+      setIsResizing(false);
+    };
+
+    if (isResizing) {
+      document.addEventListener("mousemove", handleMouseMove);
+      document.addEventListener("mouseup", handleMouseUp);
+      document.body.style.cursor = "col-resize";
+      document.body.style.userSelect = "none";
+    }
+
+    return () => {
+      document.removeEventListener("mousemove", handleMouseMove);
+      document.removeEventListener("mouseup", handleMouseUp);
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+    };
+  }, [isResizing]);
 
   // Callback to create a new conversation
   const handleCreateConversation = (): Conversation => {
@@ -306,39 +361,67 @@ function App() {
           >
             <Download className="h-5 w-5" />
           </button>
-          <button
-            className="p-2.5 rounded-xl hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark text-text-secondary-light dark:text-text-secondary-dark hover:text-primary transition-all"
-            title="Settings"
-          >
-            <Settings className="h-5 w-5" />
-          </button>
+          <div className="relative">
+            <button
+              onClick={() => setShowSettings(!showSettings)}
+              className="p-2.5 rounded-xl hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark text-text-secondary-light dark:text-text-secondary-dark hover:text-primary transition-all"
+              title="Settings"
+            >
+              <Settings className="h-5 w-5" />
+            </button>
+            {/* Settings Dropdown */}
+            {showSettings && (
+              <div className="absolute right-0 top-full mt-2 w-64 bg-surface-light dark:bg-surface-dark border border-gray-200 dark:border-gray-700 rounded-2xl shadow-2xl p-4 z-50">
+                <h3 className="text-sm font-bold text-text-primary-light dark:text-text-primary-dark mb-4">Settings</h3>
+                <div className="space-y-4">
+                  {/* Theme Toggle */}
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-text-secondary-light dark:text-text-secondary-dark">Dark Mode</span>
+                    <button
+                      onClick={() => setIsDarkMode(!isDarkMode)}
+                      className={`relative w-12 h-6 rounded-full transition-colors ${isDarkMode ? 'bg-primary' : 'bg-gray-300 dark:bg-gray-600'}`}
+                    >
+                      <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${isDarkMode ? 'translate-x-6' : 'translate-x-0'}`} />
+                    </button>
+                  </div>
+                  <p className="text-xs text-text-muted-light dark:text-text-muted-dark">
+                    Toggle between dark and light themes.
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </header>
 
-      <div className="flex-1 overflow-hidden">
-        <Group orientation="horizontal">
-          {/* Sidebar Panel */}
-          {showSidebar && (
-            <Panel defaultSize={20} minSize={15} maxSize={30} collapsible={true}>
-              <ChatHistorySidebar
-                conversations={conversations}
-                activeConversationId={activeConversationId}
-                onSelectConversation={(id) => {
-                  handleSelectConversation(id);
-                  setShowLanding(false);
-                }}
-                onCreateConversation={() => {
-                  handleCreateConversation();
-                  setShowLanding(false);
-                }}
-              />
-            </Panel>
-          )}
+      <div className="flex-1 overflow-hidden flex flex-row">
+        {/* Fixed Width Toggleable Sidebar */}
+        <div
+          className={`
+            shrink-0 transition-all duration-300 ease-in-out overflow-hidden border-r border-gray-200 dark:border-gray-800
+            ${showSidebar ? "w-[300px] translate-x-0 opacity-100" : "w-0 -translate-x-full opacity-0"}
+          `}
+        >
+          <div className="w-[300px] h-full">
+            <ChatHistorySidebar
+              conversations={conversations}
+              activeConversationId={activeConversationId}
+              onSelectConversation={(id) => {
+                handleSelectConversation(id);
+                setShowLanding(false);
+              }}
+              onCreateConversation={() => {
+                handleCreateConversation();
+                setShowLanding(false);
+              }}
+            />
+          </div>
+        </div>
 
-          {showSidebar && <ResizeHandle />}
-
-          {/* Main Chat Panel */}
-          <Panel minSize={30}>
+        {/* Main Content Area (Custom Resizable) */}
+        <div className="flex-1 min-w-0 h-full flex flex-row relative">
+          {/* Main Chat Area */}
+          <div className="flex-1 min-w-0 h-full overflow-hidden">
             <MainPage
               messages={messages}
               setMessages={setMessages}
@@ -358,15 +441,44 @@ function App() {
               }}
               onSendMessage={handleSendMessage}
             />
-          </Panel>
+          </div>
 
-          <ResizeHandle />
+          {/* Drag Handle */}
+          {!isRightSidebarCollapsed && (
+            <div
+              className="w-1.5 bg-gray-200 dark:bg-gray-800 hover:bg-primary cursor-col-resize flex-shrink-0 transition-colors z-20 group flex items-center justify-center"
+              onMouseDown={(e) => {
+                e.preventDefault();
+                setIsResizing(true);
+              }}
+            >
+              <div className="w-0.5 h-12 bg-gray-400 dark:bg-gray-600 rounded-full group-hover:bg-primary group-hover:h-20 transition-all" />
+            </div>
+          )}
 
-          {/* Right Sidebar Panel */}
-          <Panel defaultSize={30} minSize={20} collapsible={true}>
-            <RightSidebar code={code} setCode={setCode} onSendMessage={handleSendMessage} />
-          </Panel>
-        </Group>
+          {/* Right Sidebar (Collapsible) */}
+          {isRightSidebarCollapsed ? (
+            <div className="w-12 h-full bg-surface-light dark:bg-surface-dark border-l border-gray-200 dark:border-gray-800 flex flex-col items-center py-4 flex-shrink-0">
+              <button
+                onClick={() => {
+                  setIsRightSidebarCollapsed(false);
+                  setRightSidebarWidth(DEFAULT_RIGHT_SIDEBAR_WIDTH);
+                }}
+                className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 text-text-muted-light dark:text-text-muted-dark hover:text-primary transition-all"
+                title="Expand Sidebar"
+              >
+                <PanelLeft className="w-5 h-5" />
+              </button>
+            </div>
+          ) : (
+            <div
+              className="h-full flex-shrink-0 overflow-hidden"
+              style={{ width: rightSidebarWidth }}
+            >
+              <RightSidebar code={code} setCode={setCode} onSendMessage={handleSendMessage} />
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
