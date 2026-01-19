@@ -1,486 +1,78 @@
-// App.tsx
-import { useState, useEffect } from "react";
-import { Download, Settings, Menu, PanelLeft } from "lucide-react";
-// Import types for messages and conversations
-import { Message, Conversation } from "./types";
-// Utility functions for formatting dates and generating IDs
-import { formatDate, generateUniqueId, getOrCreateUserId } from "./utils";
-// Import child components
-import MainPage from "./components/MainPage";
-import ChatHistorySidebar from "./components/ChatHistorySidebar";
-import RightSidebar from "./components/RightSidebar";
-import LandingPage from "./components/LandingPage";
-import { fetchProblem, fetchProblemSummary, chatWithAI, ChatRequest } from "./services/api";
-import { v4 as uuidv4 } from "uuid";
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from "react-router-dom";
+import { AuthProvider, useAuth } from "./context/AuthContext";
+import LoginPage from "./components/auth/LoginPage";
+import SignupPage from "./components/auth/SignupPage";
+import ChatLayout from "./components/ChatLayout";
+// import LandingPage from "./components/LandingPage";
 
-function App() {
-  const [showLanding, setShowLanding] = useState(true);
-  // State for conversations and active conversation
+// Protected Route Component
+const ProtectedRoute = ({ children }: { children: JSX.Element }) => {
+  const { user, loading } = useAuth();
+  const location = useLocation();
 
-  const [conversations, setConversations] = useState<Conversation[]>([]);
-  const [activeConversationId, setActiveConversationId] = useState<
-    string | null
-  >(null);
-
-  // State for chat messages and input
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [isTyping, setIsTyping] = useState(false);
-  const [inputMessage, setInputMessage] = useState("");
-
-  // State to toggle sidebar visibility
-  const [showSidebar, setShowSidebar] = useState(true);
-
-  // State for problem selection and related data
-  const [problemSlug, setProblemSlug] = useState<string | null>(null);
-  const [hints, setHints] = useState<string[]>([]);
-  const [code, setCode] = useState<string>("");
-
-  // State for resizable right sidebar
-  const DEFAULT_RIGHT_SIDEBAR_WIDTH = 400;
-  const MIN_RIGHT_SIDEBAR_WIDTH = 100; // Below this, collapse
-  const [rightSidebarWidth, setRightSidebarWidth] = useState(DEFAULT_RIGHT_SIDEBAR_WIDTH);
-  const [isRightSidebarCollapsed, setIsRightSidebarCollapsed] = useState(false);
-  const [isResizing, setIsResizing] = useState(false);
-
-  // Theme state
-  const [isDarkMode, setIsDarkMode] = useState(() => {
-    const savedTheme = localStorage.getItem("theme");
-    return savedTheme ? savedTheme === "dark" : true; // Default to dark mode
-  });
-  const [showSettings, setShowSettings] = useState(false);
-
-  // Load saved conversations from localStorage on mount
-  useEffect(() => {
-    const storedConversations = localStorage.getItem("conversations");
-    if (storedConversations) {
-      const parsedConversations: Conversation[] =
-        JSON.parse(storedConversations);
-      setConversations(parsedConversations);
-      if (parsedConversations.length > 0) {
-        setActiveConversationId(parsedConversations[0].id);
-        setMessages(parsedConversations[0].messages);
-        setProblemSlug(parsedConversations[0].problemSlug || null);
-      }
-    }
-  }, []);
-
-  // Sync current messages and problemSlug back to the conversations array
-  useEffect(() => {
-    if (activeConversationId) {
-      setConversations((prev) =>
-        prev.map((conv) =>
-          conv.id === activeConversationId
-            ? {
-              ...conv,
-              messages,
-              problemSlug,
-              lastMessage: messages.length > 0 ? messages[messages.length - 1].content : conv.lastMessage,
-              timestamp: messages.length > 0 ? messages[messages.length - 1].timestamp : conv.timestamp
-            }
-            : conv
-        )
-      );
-    }
-  }, [messages, problemSlug, activeConversationId]);
-
-  // Save conversations to localStorage whenever they change
-  useEffect(() => {
-    localStorage.setItem("conversations", JSON.stringify(conversations));
-  }, [conversations]);
-
-  // Apply theme class to HTML element
-  useEffect(() => {
-    if (isDarkMode) {
-      document.documentElement.classList.add("dark");
-    } else {
-      document.documentElement.classList.remove("dark");
-    }
-    localStorage.setItem("theme", isDarkMode ? "dark" : "light");
-  }, [isDarkMode]);
-
-  // Handle sidebar resize with mouse events
-  useEffect(() => {
-    const handleMouseMove = (e: MouseEvent) => {
-      if (!isResizing) return;
-      // Calculate new width from right edge of window
-      const newWidth = window.innerWidth - e.clientX;
-      if (newWidth < MIN_RIGHT_SIDEBAR_WIDTH) {
-        setIsRightSidebarCollapsed(true);
-        setIsResizing(false);
-      } else {
-        setRightSidebarWidth(Math.min(newWidth, window.innerWidth * 0.6)); // Max 60% of window
-      }
-    };
-
-    const handleMouseUp = () => {
-      setIsResizing(false);
-    };
-
-    if (isResizing) {
-      document.addEventListener("mousemove", handleMouseMove);
-      document.addEventListener("mouseup", handleMouseUp);
-      document.body.style.cursor = "col-resize";
-      document.body.style.userSelect = "none";
-    }
-
-    return () => {
-      document.removeEventListener("mousemove", handleMouseMove);
-      document.removeEventListener("mouseup", handleMouseUp);
-      document.body.style.cursor = "";
-      document.body.style.userSelect = "";
-    };
-  }, [isResizing]);
-
-  // Callback to create a new conversation
-  const handleCreateConversation = (): Conversation => {
-    const newConversation: Conversation = {
-      id: generateUniqueId(),
-      conversationId: uuidv4(),
-      title: "New Conversation",
-      messages: [],
-      lastMessage: "",
-      timestamp: "",
-      problemSlug: null,
-    };
-
-    setConversations((prev) => [newConversation, ...prev]);
-    setActiveConversationId(newConversation.id);
-    setMessages([]);
-    setProblemSlug(null);
-    setInputMessage("");
-    return newConversation;
-  };
-
-  // Export current conversation as a text file
-  const handleExportChat = () => {
-    if (!activeConversationId) return;
-    const currentConversation = conversations.find(
-      (c) => c.id === activeConversationId
+  if (loading) {
+    return (
+      <div className="h-screen flex items-center justify-center bg-gray-50 dark:bg-[#0f1117]">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+      </div>
     );
-    if (!currentConversation) return;
-
-    const chatContent = currentConversation.messages
-      .map(
-        (msg) =>
-          `${msg.sender === "user" ? "You" : "AI"} (${formatDate(
-            msg.timestamp
-          )}): ${msg.content}`
-      )
-      .join("\n\n");
-
-    const blob = new Blob([chatContent], { type: "text/plain" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `chat-export-${formatDate(new Date().toISOString())}.txt`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  };
-
-  // Toggle the sidebar open/closed
-  const toggleSidebar = () => {
-    setShowSidebar(!showSidebar);
-  };
-
-  // Callback to select an existing conversation
-  const handleSelectConversation = (conversationId: string) => {
-    setActiveConversationId(conversationId);
-    const conversation = conversations.find(
-      (conv) => conv.id === conversationId
-    );
-    if (conversation) {
-      setMessages(conversation.messages);
-      setProblemSlug(conversation.problemSlug || null);   // Restore problemSlug when selecting conversation
-    }
-  };
-
-  // Handle problem selection
-  const handleProblemSelect = async (slug: string) => {
-    let currentConvo = conversations.find((c) => c.id === activeConversationId);
-
-    if (!currentConvo) {
-      currentConvo = handleCreateConversation();
-    }
-
-    try {
-      const problem = await fetchProblem(slug);
-      const problemSummary = await fetchProblemSummary(slug);
-      const problemDescription = problemSummary.description;
-
-      const problemMessage: Message = {
-        id: generateUniqueId(),
-        content: `**Problem: ${problem.title}**\n\n${problemDescription}`,
-        sender: "ai",
-        timestamp: new Date().toISOString(),
-        read: true,
-      };
-
-      setConversations((prev) => {
-        return prev.map(conv => {
-          if (conv.id === currentConvo!.id) {
-            return {
-              ...conv,
-              title: problem.title,
-              messages: [problemMessage],
-              lastMessage: problemMessage.content,
-              timestamp: new Date().toISOString(),
-              problemSlug: slug,
-            };
-          }
-          return conv;
-        });
-      });
-      setMessages([problemMessage]);
-      setProblemSlug(slug);
-    } catch (error: any) {
-      console.error("Error fetching problem:", error);
-    }
-  };
-
-  // Centralized Send Message Logic
-  const handleSendMessage = async (content: string) => {
-    if (isTyping || !content.trim()) return;
-
-    if (!problemSlug) {
-      alert("Please select a problem first.");
-      return;
-    }
-
-    const currentConvo = conversations.find(c => c.id === activeConversationId);
-    if (!activeConversationId || !currentConvo) {
-      console.error("Missing conversationId.");
-      alert("Error: No active conversation session.");
-      return;
-    }
-    const conversationUUID = currentConvo.conversationId;
-
-    const currentUser = getOrCreateUserId();
-    const newUserMessage: Message = {
-      id: generateUniqueId(),
-      content: content,
-      sender: "user",
-      timestamp: new Date().toISOString(),
-      read: true,
-    };
-
-    setMessages((prev) => [...prev, newUserMessage]);
-    setInputMessage(""); // Clear the input field
-    setIsTyping(true);
-
-    try {
-      const chatRequest: ChatRequest = {
-        question: content,
-        problem_slug: problemSlug,
-        user_id: currentUser,
-        conversation_id: conversationUUID,
-      };
-      const response = await chatWithAI(chatRequest);
-
-      const aiResponse: Message = {
-        id: generateUniqueId(),
-        content: response.response,
-        sender: "ai",
-        timestamp: new Date().toISOString(),
-        read: false,
-      };
-
-      setMessages((prev) => [...prev, aiResponse]);
-
-      // If response contains a code example, extract it
-      if (response.response.includes("Code Example")) {
-        const codeStart = response.response.indexOf("```python");
-        if (codeStart !== -1) {
-          const codeEnd = response.response.indexOf("```", codeStart + 3);
-          if (codeEnd !== -1) {
-            setCode(response.response.substring(codeStart + 9, codeEnd));
-          }
-        }
-      } else if (response.response.toLowerCase().includes("hint")) {
-        // If response includes a hint, add it to the hints list
-        setHints((prevHints) => [...prevHints, response.response]);
-      }
-    } catch (error: any) {
-      console.error("Failed to send message:", error);
-      // Restore the message in case of failure
-      setInputMessage(content);
-      if (error.message && error.message.includes("429")) {
-        alert("Rate Limit Reached: You are sending messages too fast. Please wait a moment before trying again.");
-      } else {
-        alert("Failed to send message. Please check your connection and try again.");
-      }
-    } finally {
-      setIsTyping(false);
-    }
-  };
-
-  if (showLanding) {
-    return <LandingPage onStart={() => setShowLanding(false)} />;
   }
 
-  return (
-    <div className="h-screen flex flex-col bg-background-light dark:bg-background-dark text-text-primary-light dark:text-text-primary-dark transition-colors duration-200 font-sans overflow-hidden">
-      {/* Top Header - Now global for consistency */}
-      <header className="h-16 bg-surface-light dark:bg-surface-dark border-b border-gray-200 dark:border-gray-800 px-6 flex items-center justify-between z-20 shadow-sm shrink-0">
-        <div className="flex items-center space-x-4">
-          <button
-            onClick={toggleSidebar}
-            className="p-2 rounded-xl hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark transition-all text-text-secondary-light dark:text-text-secondary-dark hover:text-primary"
-            aria-label="Toggle sidebar"
-          >
-            <Menu className="h-5 w-5" />
-          </button>
-          <div>
-            <h2 className="text-lg font-bold tracking-tight text-text-primary-light dark:text-text-primary-dark truncate max-w-[200px] md:max-w-md">
-              {activeConversationId
-                ? conversations.find((c) => c.id === activeConversationId)
-                  ?.title || "Chat Session"
-                : "New learning session"}
-            </h2>
-            <div className="flex items-center text-[10px] uppercase font-bold tracking-widest text-primary/70">
-              <span className="w-1.5 h-1.5 rounded-full bg-primary mr-1.5 animate-pulse"></span>
-              Gemini 2.0 Flash
-            </div>
-          </div>
-        </div>
+  if (!user) {
+    return <Navigate to="/login" state={{ from: location }} replace />;
+  }
 
-        <div className="flex items-center space-x-3">
-          <button
-            onClick={() => setShowLanding(true)}
-            className="px-4 py-2 text-xs font-bold bg-surface-alt-light dark:bg-surface-alt-dark text-text-secondary-light dark:text-text-secondary-dark hover:text-primary rounded-xl transition-all border border-gray-200 dark:border-gray-700"
-          >
-            Home
-          </button>
-          <div className="h-4 w-[1px] bg-gray-200 dark:bg-gray-800 mx-1"></div>
-          <button
-            onClick={handleExportChat}
-            disabled={!activeConversationId}
-            className="p-2.5 rounded-xl hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark text-text-secondary-light dark:text-text-secondary-dark hover:text-primary transition-all disabled:opacity-30"
-            title="Export chat"
-          >
-            <Download className="h-5 w-5" />
-          </button>
-          <div className="relative">
-            <button
-              onClick={() => setShowSettings(!showSettings)}
-              className="p-2.5 rounded-xl hover:bg-surface-alt-light dark:hover:bg-surface-alt-dark text-text-secondary-light dark:text-text-secondary-dark hover:text-primary transition-all"
-              title="Settings"
-            >
-              <Settings className="h-5 w-5" />
-            </button>
-            {/* Settings Dropdown */}
-            {showSettings && (
-              <div className="absolute right-0 top-full mt-2 w-64 bg-surface-light dark:bg-surface-dark border border-gray-200 dark:border-gray-700 rounded-2xl shadow-2xl p-4 z-50">
-                <h3 className="text-sm font-bold text-text-primary-light dark:text-text-primary-dark mb-4">Settings</h3>
-                <div className="space-y-4">
-                  {/* Theme Toggle */}
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-text-secondary-light dark:text-text-secondary-dark">Dark Mode</span>
-                    <button
-                      onClick={() => setIsDarkMode(!isDarkMode)}
-                      className={`relative w-12 h-6 rounded-full transition-colors ${isDarkMode ? 'bg-primary' : 'bg-gray-300 dark:bg-gray-600'}`}
-                    >
-                      <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${isDarkMode ? 'translate-x-6' : 'translate-x-0'}`} />
-                    </button>
-                  </div>
-                  <p className="text-xs text-text-muted-light dark:text-text-muted-dark">
-                    Toggle between dark and light themes.
-                  </p>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      </header>
+  return children;
+};
 
-      <div className="flex-1 overflow-hidden flex flex-row">
-        {/* Fixed Width Toggleable Sidebar */}
-        <div
-          className={`
-            shrink-0 transition-all duration-300 ease-in-out overflow-hidden border-r border-gray-200 dark:border-gray-800
-            ${showSidebar ? "w-[300px] translate-x-0 opacity-100" : "w-0 -translate-x-full opacity-0"}
-          `}
-        >
-          <div className="w-[300px] h-full">
-            <ChatHistorySidebar
-              conversations={conversations}
-              activeConversationId={activeConversationId}
-              onSelectConversation={(id) => {
-                handleSelectConversation(id);
-                setShowLanding(false);
-              }}
-              onCreateConversation={() => {
-                handleCreateConversation();
-                setShowLanding(false);
-              }}
-            />
-          </div>
-        </div>
+// Public Route Component (redirects to chat if already logged in)
+const PublicRoute = ({ children }: { children: JSX.Element }) => {
+  const { user, loading } = useAuth();
 
-        {/* Main Content Area (Custom Resizable) */}
-        <div className="flex-1 min-w-0 h-full flex flex-row relative">
-          {/* Main Chat Area */}
-          <div className="flex-1 min-w-0 h-full overflow-hidden">
-            <MainPage
-              messages={messages}
-              setMessages={setMessages}
-              isTyping={isTyping}
-              setIsTyping={setIsTyping}
-              inputMessage={inputMessage}
-              setInputMessage={setInputMessage}
-              problemSlug={problemSlug}
-              setProblemSlug={setProblemSlug}
-              hints={hints}
-              setHints={setHints}
-              code={code}
-              setCode={setCode}
-              handleProblemSelect={async (slug) => {
-                await handleProblemSelect(slug);
-                setShowLanding(false);
-              }}
-              onSendMessage={handleSendMessage}
-            />
-          </div>
-
-          {/* Drag Handle */}
-          {!isRightSidebarCollapsed && (
-            <div
-              className="w-1.5 bg-gray-200 dark:bg-gray-800 hover:bg-primary cursor-col-resize flex-shrink-0 transition-colors z-20 group flex items-center justify-center"
-              onMouseDown={(e) => {
-                e.preventDefault();
-                setIsResizing(true);
-              }}
-            >
-              <div className="w-0.5 h-12 bg-gray-400 dark:bg-gray-600 rounded-full group-hover:bg-primary group-hover:h-20 transition-all" />
-            </div>
-          )}
-
-          {/* Right Sidebar (Collapsible) */}
-          {isRightSidebarCollapsed ? (
-            <div className="w-12 h-full bg-surface-light dark:bg-surface-dark border-l border-gray-200 dark:border-gray-800 flex flex-col items-center py-4 flex-shrink-0">
-              <button
-                onClick={() => {
-                  setIsRightSidebarCollapsed(false);
-                  setRightSidebarWidth(DEFAULT_RIGHT_SIDEBAR_WIDTH);
-                }}
-                className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 text-text-muted-light dark:text-text-muted-dark hover:text-primary transition-all"
-                title="Expand Sidebar"
-              >
-                <PanelLeft className="w-5 h-5" />
-              </button>
-            </div>
-          ) : (
-            <div
-              className="h-full flex-shrink-0 overflow-hidden"
-              style={{ width: rightSidebarWidth }}
-            >
-              <RightSidebar code={code} setCode={setCode} onSendMessage={handleSendMessage} />
-            </div>
-          )}
-        </div>
+  if (loading) {
+    return (
+      <div className="h-screen flex items-center justify-center bg-gray-50 dark:bg-[#0f1117]">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
       </div>
-    </div>
+    );
+  }
+
+  if (user) {
+    return <Navigate to="/chat" replace />;
+  }
+
+  return children;
+};
+
+function App() {
+  return (
+    <AuthProvider>
+      <Router>
+        <Routes>
+          <Route path="/login" element={
+            <PublicRoute>
+              <LoginPage />
+            </PublicRoute>
+          } />
+          <Route path="/signup" element={
+            <PublicRoute>
+              <SignupPage />
+            </PublicRoute>
+          } />
+          <Route path="/chat" element={
+            <ProtectedRoute>
+              <ChatLayout />
+            </ProtectedRoute>
+          } />
+
+          {/* Default Redirect: Go to Login (which redirects to Chat if auth, helps flow) */}
+          <Route path="/" element={<Navigate to="/login" replace />} />
+
+          {/* Catch all redirect */}
+          <Route path="*" element={<Navigate to="/login" replace />} />
+        </Routes>
+      </Router>
+    </AuthProvider>
   );
 }
 

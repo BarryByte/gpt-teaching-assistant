@@ -1,6 +1,7 @@
-from fastapi import FastAPI, HTTPException, Depends, Request
+from fastapi import FastAPI, HTTPException, Depends, Request, status
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from pydantic import BaseModel, Field
 import requests
 import json
 import os
@@ -8,13 +9,13 @@ import google.generativeai as genai
 from scrapers import get_scraper, extract_identifier
 import logging
 from functools import lru_cache
-from typing import List, Dict
+from typing import List, Dict, Optional
 from pymongo import MongoClient
 from pymongo.server_api import ServerApi
-from datetime import datetime
+from datetime import datetime, timedelta
 from dotenv import load_dotenv
-
-
+from passlib.context import CryptContext
+from jose import JWTError, jwt
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -25,6 +26,12 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 MONGO_URI = os.getenv("MONGO_URI")
 MONGODB_DB_NAME = os.getenv("MONGODB_DB_NAME")
 
+# Secret key for JWT - In production, this should be in .env!
+# Using a random string for now or get from env
+SECRET_KEY = os.getenv("SECRET_KEY", "your-secret-key-should-be-in-env")
+ALGORITHM = "HS256"
+ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24  # 24 hours
+
 # Validate environment variables
 if not GEMINI_API_KEY:
     raise ValueError("GEMINI_API_KEY not set in .env")
@@ -34,10 +41,7 @@ if not MONGODB_DB_NAME:
     raise ValueError("MONGODB_DB_NAME not set in .env")
 
 # Initialize Gemini AI
-if GEMINI_API_KEY:
-    genai.configure(api_key=GEMINI_API_KEY)
-else:
-    raise ValueError("Gemini API Key not found. Set GEMINI_API_KEY in .env file")
+genai.configure(api_key=GEMINI_API_KEY)
 
 # Initialize MongoDB Client
 try:
@@ -46,6 +50,7 @@ try:
     logging.info("Successfully connected to MongoDB!")
     db = client[MONGODB_DB_NAME]
     chat_collection = db["chats"]
+    users_collection = db["users"]
 except Exception as e:
     logging.error(f"Failed to connect to MongoDB: {e}")
     raise ValueError("Failed to connect to MongoDB")
@@ -62,6 +67,111 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Authentication Utilities
+pwd_context = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
+
+def verify_password(plain_password, hashed_password):
+    return pwd_context.verify(plain_password, hashed_password)
+
+def get_password_hash(password):
+    return pwd_context.hash(password)
+
+def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
+    to_encode = data.copy()
+    if expires_delta:
+        expire = datetime.utcnow() + expires_delta
+    else:
+        expire = datetime.utcnow() + timedelta(minutes=15)
+    to_encode.update({"exp": expire})
+    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+    return encoded_jwt
+
+# Models
+class UserCreate(BaseModel):
+    username: str
+    password: str
+
+class User(BaseModel):
+    username: str
+    disabled: Optional[bool] = None
+
+class UserInDB(User):
+    hashed_password: str
+
+class Token(BaseModel):
+    access_token: str
+    token_type: str
+
+class ChatRequest(BaseModel):
+    question: str
+    problem_slug: str
+    conversation_id: str
+    # user_id is no longer taken from request body but from auth token
+
+# Dependencies
+async def get_current_user(token: str = Depends(oauth2_scheme)):
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        username: str = payload.get("sub")
+        if username is None:
+            raise credentials_exception
+    except JWTError:
+        raise credentials_exception
+    
+    user_doc = users_collection.find_one({"username": username})
+    if user_doc is None:
+        raise credentials_exception
+    
+    return UserInDB(
+        username=user_doc["username"],
+        hashed_password=user_doc["hashed_password"],
+        disabled=user_doc.get("disabled")
+    )
+
+# --- Auth Endpoints ---
+
+@app.post("/signup", status_code=status.HTTP_201_CREATED)
+async def signup(user: UserCreate):
+    if users_collection.find_one({"username": user.username}):
+        raise HTTPException(status_code=400, detail="Username already registered")
+    
+    hashed_password = get_password_hash(user.password)
+    user_dict = {
+        "username": user.username,
+        "hashed_password": hashed_password,
+        "disabled": False,
+        "created_at": datetime.now()
+    }
+    users_collection.insert_one(user_dict)
+    return {"message": "User created successfully"}
+
+@app.post("/token", response_model=Token)
+async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends()):
+    user_doc = users_collection.find_one({"username": form_data.username})
+    if not user_doc or not verify_password(form_data.password, user_doc["hashed_password"]):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect username or password",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    
+    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = create_access_token(
+        data={"sub": user_doc["username"]}, expires_delta=access_token_expires
+    )
+    return {"access_token": access_token, "token_type": "bearer"}
+
+@app.get("/users/me")
+async def read_users_me(current_user: User = Depends(get_current_user)):
+    return {"username": current_user.username}
+
+# --- Existing Logic Refactored ---
 
 # Generic problem data fetcher with caching
 @lru_cache(maxsize=100)
@@ -78,17 +188,6 @@ def get_problem_data(identifier: str) -> Dict:
         
     return data
 
-
-
-# Request model for chat
-class ChatRequest(BaseModel):
-    question: str
-    problem_slug: str # Keeping the name for backward compatibility, but it's now a URL or identifier
-    user_id: str
-    conversation_id: str
-
-
-# Fetch problem details
 @app.get("/fetch-problem/{problem_identifier:path}")
 def fetch_problem(problem_identifier: str) -> Dict:
     return get_problem_data(problem_identifier)
@@ -113,22 +212,22 @@ def fetch_problem_summary(problem_identifier: str):
 
 from google.api_core import exceptions
 
-# Chat with Gemini AI
+# Chat with Gemini AI (Protected)
 @app.post("/chat")
-def chat(request: ChatRequest):
+def chat(request: ChatRequest, current_user: User = Depends(get_current_user)):
     try:
-        logging.info(f"Received chat request for problem: {request.problem_slug}")
+        logging.info(f"Received chat request from {current_user.username} for problem: {request.problem_slug}")
         
         # 1. Fetch problem data (handles its own HTTPExceptions)
         problem_data = get_problem_data(request.problem_slug)
         
-        # 2. Build Chat History Context
+        # 2. Build Chat History Context (User Specific)
         try:
-            history = get_user_chat_history(request.user_id, request.conversation_id)
+            history = get_user_chat_history(current_user.username, request.conversation_id)
             history_context = json.dumps(history[-5:], indent=2)
         except Exception as e:
             logging.error(f"MongoDB history fetch error: {e}")
-            history_context = "[]" # Fallback to empty history if DB fails
+            history_context = "[]" # Fallback to empty history
 
         # 3. Construct Prompt
         prompt = f"""
@@ -196,10 +295,10 @@ Now, respond accordingly and continue guiding the user from where the conversati
         response = model.generate_content(prompt)
         ai_response = response.text.strip()
 
-        # 5. Store in MongoDB
+        # 5. Store in MongoDB (using verified username)
         try:
             chat_collection.insert_one({
-                "user_id": request.user_id,
+                "user_id": current_user.username,
                 "question": request.question,
                 "conversation_id": request.conversation_id,
                 "response": ai_response,
@@ -221,25 +320,26 @@ Now, respond accordingly and continue guiding the user from where the conversati
         logging.error(f"Gemini Invalid Argument: {e}")
         raise HTTPException(status_code=400, detail="Invalid request parameters sent to AI.")
     except HTTPException as e:
-        # Re-raise FastAPIs own HTTPExceptions (e.g. from get_problem_data)
         raise e
     except Exception as e:
         logging.error(f"Unexpected error in /chat: {e}")
         raise HTTPException(status_code=500, detail=f"An internal error occurred: {str(e)}")
 
-# Retrieve chat history from MongoDB
-def get_user_chat_history(user_id: str, conversation_id: str) -> List[Dict[str, str]]:
+# Retrieve chat history from MongoDB (Filtered by User)
+def get_user_chat_history(username: str, conversation_id: str) -> List[Dict[str, str]]:
     history = list(chat_collection.find(
-        {"user_id": user_id, "conversation_id": conversation_id},
+        {"user_id": username, "conversation_id": conversation_id},
         {"_id": 0, "question": 1, "response": 1}
     ))
     return history
 
 
-# Retrieve chat history endpoint - Corrected route to include conversation_id
-@app.get("/history/{user_id}/{conversation_id}")
-def fetch_history(user_id: str, conversation_id: str) -> List[Dict[str, str]]: # Renamed function to avoid conflict, using fetch_history for endpoint
-    return get_user_chat_history(user_id, conversation_id) # Pass conversation_id
+# Retrieve chat history endpoint (Protected)
+@app.get("/history/{conversation_id}")
+def fetch_history(conversation_id: str, current_user: User = Depends(get_current_user)) -> List[Dict[str, str]]:
+    # We ignore any user_id passed in URL (previously it was /history/{user_id}/...)
+    # Now we rely on the token to identify the user
+    return get_user_chat_history(current_user.username, conversation_id)
 
 # Run the app
 if __name__ == "__main__":
