@@ -116,9 +116,50 @@ export async function fetchProblemSummary(slug: string): Promise<ProblemSummary>
   return response.data;
 }
 
+
 export async function chatWithAI(requestData: ChatRequest): Promise<ChatResponse> {
   const response = await api.post("/chat", requestData);
   return response.data;
+}
+
+export async function streamChatWithAI(
+  requestData: ChatRequest,
+  onChunk: (chunk: string) => void,
+  onError: (error: any) => void
+): Promise<void> {
+  try {
+    const token = localStorage.getItem("token");
+    const response = await fetch(`${API_BASE_URL}/chat`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { "Authorization": `Bearer ${token}` } : {})
+      },
+      body: JSON.stringify(requestData),
+    });
+
+    if (!response.ok) {
+      // Handle non-200, try to parse error
+      const errText = await response.text();
+      throw new Error(`API Error ${response.status}: ${errText}`);
+    }
+
+    const reader = response.body?.getReader();
+    const decoder = new TextDecoder();
+
+    if (!reader) {
+      throw new Error("Response body is not readable");
+    }
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      const chunk = decoder.decode(value, { stream: true });
+      onChunk(chunk);
+    }
+  } catch (error) {
+    onError(error);
+  }
 }
 
 export async function fetchChatHistory(conversationId: string): Promise<ChatHistoryItem[]> {
@@ -127,5 +168,10 @@ export async function fetchChatHistory(conversationId: string): Promise<ChatHist
   return response.data;
 }
 
+export async function deleteConversation(conversationId: string): Promise<void> {
+  await api.delete(`/history/${conversationId}`);
+}
+
 export default api;
+
 

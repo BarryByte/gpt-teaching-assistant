@@ -1,6 +1,6 @@
 // ChatHistorySidebar.tsx
 import React, { useState } from 'react';
-import { Plus, Search, MessageSquare } from 'lucide-react';
+import { Plus, Search, MessageSquare, Trash2 } from 'lucide-react';
 import { Conversation } from '../types';
 import { formatDate } from '../utils';
 
@@ -9,6 +9,7 @@ interface ChatHistorySidebarProps {
   activeConversationId: string | null;
   onSelectConversation: (conversationId: string) => void;
   onCreateConversation: () => void;
+  onDeleteConversation: (conversationId: string) => void;
 }
 
 const ChatHistorySidebar: React.FC<ChatHistorySidebarProps> = ({
@@ -16,6 +17,7 @@ const ChatHistorySidebar: React.FC<ChatHistorySidebarProps> = ({
   activeConversationId,
   onSelectConversation,
   onCreateConversation,
+  onDeleteConversation,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -81,49 +83,58 @@ const ChatHistorySidebar: React.FC<ChatHistorySidebarProps> = ({
           </div>
         ) : (
           filteredConversations.map((conv) => (
-            <button
+            <div
               key={conv.id}
-              onClick={() => onSelectConversation(conv.id)}
               className={`w-full group relative p-4 rounded-2xl transition-all duration-300 flex items-start space-x-3 text-left ${activeConversationId === conv.id
                 ? 'bg-primary/10 border border-primary/20 shadow-xl shadow-primary/5'
                 : 'hover:bg-gray-50 dark:hover:bg-white/5 border border-transparent'
                 }`}
             >
-              <div className={`shrink-0 w-10 h-10 rounded-xl flex items-center justify-center border transition-colors ${activeConversationId === conv.id
-                ? 'bg-primary text-background-dark border-primary shadow-lg shadow-primary/20'
-                : 'bg-white dark:bg-surface-dark border-gray-200 dark:border-gray-800 text-text-muted-light dark:text-text-muted-dark group-hover:border-primary/30 group-hover:text-primary'
-                }`}>
-                <MessageSquare className="h-5 w-5" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center justify-between mb-1">
-                  <h3 className={`text-sm font-bold truncate transition-colors ${activeConversationId === conv.id ? 'text-primary' : 'text-text-primary-light dark:text-text-primary-dark group-hover:text-primary'
-                    }`}>
-                    {conv.title}
-                  </h3>
-                  <span className="text-[10px] text-text-muted-light dark:text-text-muted-dark font-medium opacity-60">
-                    {conv.timestamp ? formatDate(conv.timestamp) : 'Just now'}
-                  </span>
+              <button
+                onClick={() => onSelectConversation(conv.id)}
+                className="flex-1 flex items-start space-x-3 text-left focus:outline-none"
+              >
+                <div className={`shrink-0 w-10 h-10 rounded-xl flex items-center justify-center border transition-colors ${activeConversationId === conv.id
+                  ? 'bg-primary text-background-dark border-primary shadow-lg shadow-primary/20'
+                  : 'bg-white dark:bg-surface-dark border-gray-200 dark:border-gray-800 text-text-muted-light dark:text-text-muted-dark group-hover:border-primary/30 group-hover:text-primary'
+                  }`}>
+                  <MessageSquare className="h-5 w-5" />
                 </div>
-                <p className="text-xs text-text-secondary-light dark:text-text-secondary-dark truncate opacity-70 group-hover:opacity-100 transition-opacity">
-                  {conv.lastMessage || 'Start exploring...'}
-                </p>
-              </div>
-            </button>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between mb-1">
+                    <h3 className={`text-sm font-bold truncate transition-colors ${activeConversationId === conv.id ? 'text-primary' : 'text-text-primary-light dark:text-text-primary-dark group-hover:text-primary'
+                      }`}>
+                      {conv.title}
+                    </h3>
+                    <span className="text-[10px] text-text-muted-light dark:text-text-muted-dark font-medium opacity-60">
+                      {conv.timestamp ? formatDate(conv.timestamp) : 'Just now'}
+                    </span>
+                  </div>
+                  <p className="text-xs text-text-secondary-light dark:text-text-secondary-dark truncate opacity-70 group-hover:opacity-100 transition-opacity">
+                    {conv.lastMessage || 'Start exploring...'}
+                  </p>
+                </div>
+              </button>
+
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (confirm("Are you sure you want to delete this conversation?")) {
+                    onDeleteConversation(conv.id);
+                  }
+                }}
+                className="opacity-0 group-hover:opacity-100 p-1.5 hover:bg-red-500/10 text-text-muted-light dark:text-text-muted-dark hover:text-red-500 rounded-lg transition-all"
+                title="Delete Conversation"
+              >
+                <Trash2 className="h-4 w-4" />
+              </button>
+            </div>
           ))
         )}
       </div>
 
-      {/* Footer */}
-      <div className="p-6 border-t border-gray-200 dark:border-gray-800 bg-gray-50/50 dark:bg-white/5 backdrop-blur-sm">
-        <div className="flex items-center space-x-3">
-          <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-primary to-amber-500 border border-white/20 shadow-md"></div>
-          <div className="flex-1 min-w-0">
-            <p className="text-xs font-bold text-text-primary-light dark:text-text-primary-dark truncate">Pro Learner</p>
-            <p className="text-[10px] text-text-muted-light dark:text-text-muted-dark truncate font-medium">Free Tier • 12/20 msgs</p>
-          </div>
-        </div>
-      </div>
+      
+      
     </div>
   );
 };

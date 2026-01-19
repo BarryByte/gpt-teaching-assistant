@@ -1,133 +1,92 @@
-# GPT Teaching Assistant - DSA Learning App
+# GPT Teaching Assistant 🧠
+
+> A personalized, AI-powered tutor for mastering Data Structures and Algorithms.
+
+![License](https://img.shields.io/badge/license-MIT-blue.svg)
+![Status](https://img.shields.io/badge/status-active-success.svg)
 
 ## Overview
 
-GPT Teaching Assistant is a web application designed to aid students in understanding Data Structures and Algorithms (DSA) problems from LeetCode.  It offers a chat-based interface where users can submit LeetCode problem links and their questions.  Powered by the Google Gemini API, the backend provides guidance and hints, fostering problem-solving skills without giving direct answers. Built with FastAPI, React, Vite, and Tailwind CSS.
+**GPT Teaching Assistant** is an interactive platform designed to help students learn DSA concepts effectively. Unlike traditional AI tools that give direct answers, this assistant uses the **Google Gemini API** to provide Socratic guidance, hints, and conceptual explanations, fostering true problem-solving skills.
 
-## Video Demo
+## ✨ Key Features
 
-[**Loom Video Demo**](https://www.loom.com/share/454e951cc1cd4ad98d5a7c372f672100?sid=1bfe9b35-44d0-49bb-bfdc-d8d8703b7c06)
+- **🚀 Smart Authentication**: Secure user signup, login, and session management using JWT.
+- **💬 Real-Time Streaming Chat**: Experience instant, typewriter-style responses for a natural conversation flow.
+- **📚 User-Specific History**: All your chat sessions are saved privately to your account.
+- **🗑️ Conversation Management**: Easily delete old or irrelevant sessions.
+- **🧩 Deep LeetCode Integration**: Paste a problem URL to instantly load context, constraints, and specific hints.
+- **🎯 Guidance-First Approach**: The AI avoids spoon-feeding solutions, instead guiding you to the answer.
 
+## 🛠️ Technology Stack
 
+### Backend
+- **Framework**: FastAPI (Python)
+- **Database**: MongoDB (via PyMongo)
+- **AI Engine**: Google Gemini 2.0 Flash
+- **Architecture**: Modular Service-Oriented Architecture
 
-## Features
+### Frontend
+- **Framework**: React (Vite) + TypeScript
+- **Styling**: Tailwind CSS
+- **State**: Context API
+- **Routing**: React Router
 
-*   **LeetCode Input:**  Easily submit LeetCode problem URLs.
-*   **Doubt Submission:**  Chat interface for asking specific DSA questions.
-*   **GPT-Powered Help:**  Uses Google Gemini API (gemini-flash2.0) for intelligent assistance.
-*   **Guidance, Not Solutions:**  Provides hints and guiding questions to promote independent problem-solving.
-*   **Interactive Chat:**  Clean, responsive chat interface with React and Tailwind CSS.
-*   **Custom LeetCode Data:** Fetches problem details using a custom scraper for richer context.
+## 🚀 Getting Started
 
-## Tech Stack
+### Prerequisites
+- Node.js & npm
+- Python 3.9+
+- MongoDB Instance
+- Google Gemini API Key
 
-*   **Frontend:** React (Vite), TypeScript, Tailwind CSS, npm.
-*   **Backend:** FastAPI, Python, Google Gemini API (gemini-flash2.0), `google-generativeai`, `python-dotenv`.
-*   **Utilities:** `requests`, `beautifulsoup4`, `uvicorn`, `pydantic`.
+### 1. Clone the Repository
+```bash
+git clone https://github.com/yourusername/gpt-teaching-assistant.git
+cd gpt-teaching-assistant
+```
 
-[**Screenshot of the chat interface here**]
-## Screenshots
-![image](https://github.com/user-attachments/assets/c85f19c0-cff4-4b9f-a628-1cbdd71b3496)
-![image](https://github.com/user-attachments/assets/9bdb976e-5a30-4d97-8904-2e3498c04095)
+### 2. Backend Setup
+```bash
+cd backend
+python -m venv myenv
+source myenv/bin/activate  # On Windows: myenv\Scripts\activate
+pip install -r requirements.txt
+```
 
+Create a `.env` file in `backend/`:
+```env
+GEMINI_API_KEY=your_gemini_key
+MONGO_URI=your_mongodb_connection_string
+MONGODB_DB_NAME=gpt_tutor_db
+SECRET_KEY=your_jwt_secret_key
+ALGORITHM=HS256
+```
 
+Run the server:
+```bash
+python -m uvicorn app.main:app --reload --port 8000
+```
 
-## Setup Instructions
+### 3. Frontend Setup
+```bash
+cd frontend
+npm install
+npm run dev
+```
 
-1.  **Clone Repo:**
-    ```bash
-    git clone [YOUR_REPOSITORY_URL]
-    cd gpt-assistant-env
-    ```
+Visit `http://localhost:5173` to start learning!
 
-2.  **Backend Setup:**
-    ```bash
-    cd backend
-    cd gpt_assistant_env/bin
-    source activate # Activate virtual env
-    cd ../..
-    pip install -r requirements.txt
-    ```
-    *   **Dependencies:** See `requirements.txt` for Python packages.
-    *   **.env Config:** Create `.env` in `backend/` and add:
-        ```dotenv
-        GEMINI_API_KEY=YOUR_GEMINI_API_KEY
-        MONGO_URI=YOUR_MONGODB_CONNECTION_STRING
-        MONGODB_DB_NAME=YOUR_DATABASE_NAME
-        ```
-        *   Get Gemini API key from Google AI Studio. Setup MongoDB and add connection string if needed.
-    *   **Run Backend:**
-        ```bash
-        uvicorn backend:app --reload
-        ```
+## 📸 Screenshots
 
-3.  **Frontend Setup:**
-    ```bash
-    cd ../frontend
-    npm install
-    npm run dev
-    ```
-    *   **Dependencies:** Frontend uses npm. Key: React, Vite, Tailwind CSS.
+| Login Page | Chat Interface |
+|:---:|:---:|
+| ![Login UI](https://placehold.co/600x400/e2e8f0/475569?text=Login+Securely) | ![Chat UI](https://placehold.co/600x400/e2e8f0/475569?text=Interactive+Tutor) |
 
-4.  **Configuration:** Frontend defaults to connect to backend on `http://localhost:[backend_port]`. Verify ports if needed.
+## 🤝 Contributing
 
-[**Screenshot of folder structure could be inserted here**]
+Contributions are welcome! Please feel free to submit a Pull Request.
 
+## 📄 License
 
-## Usage Instructions
-
-1.  **Start:** Run backend and frontend servers.
-2.  **Access:** Open browser to `http://localhost:5173`.
-3.  **Chat Interface:**
-    *   **LeetCode URL:** Paste LeetCode problem link.
-    *   **Ask Doubt:** Type your question.
-    *   **GPT Help:** Send message, receive guided assistance.
-    *   **Interact:** Continue conversation for deeper understanding.
-
-
-
-## Architecture
-
-Client-server model:
-
-*   **Frontend (Client):** React UI (Vite, Tailwind CSS). Handles user input/display, communicates with backend API.
-*   **Backend (Server):** FastAPI (Python). API server for:
-    *   Receiving frontend requests.
-    *   Fetching problem data (`leet-scraper.py`).
-    *   Interacting with Google Gemini API for responses.
-    *   Managing `.env` variables.
-    *   Sending responses to frontend.
-*   **Google Gemini API:** Provides core AI assistance. Prompt-driven for hints and conceptual guidance.
-
-
-
-## Example Prompts
-
-*   **Initial Understanding:** "Tell me what you've tried for [LeetCode Problem] or what's confusing you?"
-*   **Hint:** "Consider [DSA concept] - how might it apply here?"
-*   **Guiding Question:** "What are the key problem constraints and how do they limit solutions?"
-*   **Intuition:** "Problems like this often use [Algorithm Pattern/Data Structure]. Any similarities here?"
-*   **Avoid Direct Answer:** "Let's break it down. What are the base cases?"
-*   **Clarification:** "What aspect are you struggling with: problem, algorithm, or implementation?"
-*   **Encouragement:** "You're on the right track! Consider [Algorithm Step/Data Structure] again."
-*   **Alternative:** "If current approach isn't working, consider [Different Algorithm Paradigm]."
-
-
-
-## Possible Enhancements
-
-*   User Authentication & History
-*   Support More Platforms (HackerRank, etc.)
-*   Code Execution Environment
-*   Advanced Prompt Engineering
-*   Different LLM Options
-*   Visualizations for DSA Concepts
-*   Personalized Learning Paths
-
-## Credits
-
-Developed by Abhay Raj / BarryByte (Github_username) for Software Engineering Intern Assignment.
-
-## License
-
-MIT License
+This project is open-sourced under the MIT License.

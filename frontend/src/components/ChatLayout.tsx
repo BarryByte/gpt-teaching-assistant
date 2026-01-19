@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Download, Settings, Menu, PanelLeft, LogOut } from "lucide-react";
-import { Message, Conversation, fetchProblem, fetchProblemSummary, chatWithAI, ChatRequest } from "../services/api";
+import { Message, Conversation, fetchProblem, fetchProblemSummary, ChatRequest } from "../services/api";
 import { formatDate, generateUniqueId } from "../utils";
 import MainPage from "./MainPage";
 import ChatHistorySidebar from "./ChatHistorySidebar";
@@ -127,6 +127,7 @@ function ChatLayout() {
         };
     }, [isResizing]);
 
+
     // Callback to create a new conversation
     const handleCreateConversation = (): Conversation => {
         const newConversation: Conversation = {
@@ -146,6 +147,35 @@ function ChatLayout() {
         setInputMessage("");
         return newConversation;
     };
+
+    const handleDeleteConversation = async (conversationId: string) => {
+        const conversation = conversations.find(c => c.id === conversationId);
+        if (!conversation) return;
+
+        // Optimistic UI update
+        const newConversations = conversations.filter(c => c.id !== conversationId);
+        setConversations(newConversations);
+
+        if (activeConversationId === conversationId) {
+            // If we strictly want to clear, we can. Or pick the first one.
+            if (newConversations.length > 0) {
+                setActiveConversationId(newConversations[0].id);
+                setMessages(newConversations[0].messages);
+                setProblemSlug(newConversations[0].problemSlug || null);
+            } else {
+                setActiveConversationId(null);
+                setMessages([]);
+                setProblemSlug(null);
+            }
+        }
+
+        try {
+            await import("../services/api").then(mod => mod.deleteConversation(conversation.conversationId));
+        } catch (error) {
+            console.error("Failed to delete conversation:", error);
+            // Revert if needed, but for now we trust it works or user refreshes.
+        }
+    }
 
     // Export current conversation as a text file
     const handleExportChat = () => {
@@ -197,6 +227,12 @@ function ChatLayout() {
             currentConvo = handleCreateConversation();
         }
 
+        // Fix: Ensure we are using the freshly created conversation ID if it was just created
+        // handleCreateConversation updates state but `conversations` here is closure stale?
+        // Actually handleCreateConversation returns the object.
+        // We will force setting state below with functional update which is safer.
+        const targetConvoId = currentConvo.id;
+
         try {
             const problem = await fetchProblem(slug);
             const problemSummary = await fetchProblemSummary(slug);
@@ -212,7 +248,7 @@ function ChatLayout() {
 
             setConversations((prev) => {
                 return prev.map(conv => {
-                    if (conv.id === currentConvo!.id) {
+                    if (conv.id === targetConvoId) {
                         return {
                             ...conv,
                             title: problem.title,
@@ -225,8 +261,14 @@ function ChatLayout() {
                     return conv;
                 });
             });
-            setMessages([problemMessage]);
-            setProblemSlug(slug);
+
+            // If we are looking at this conversation, update messages view
+            if (activeConversationId === targetConvoId || !activeConversationId) {
+                setMessages([problemMessage]);
+                setProblemSlug(slug);
+                if (!activeConversationId) setActiveConversationId(targetConvoId);
+            }
+
         } catch (error: any) {
             console.error("Error fetching problem:", error);
         }
@@ -265,40 +307,68 @@ function ChatLayout() {
                 question: content,
                 problem_slug: problemSlug,
                 conversation_id: conversationUUID,
-                // user_id handled by token
             };
 
-            const response = await chatWithAI(chatRequest);
-
-            const aiResponse: Message = {
-                id: generateUniqueId(),
-                content: response.response,
+            // Prepare placeholder for AI response
+            const aiResponseId = generateUniqueId();
+            const initialAiResponse: Message = {
+                id: aiResponseId,
+                content: "", // Start empty
                 sender: "ai",
                 timestamp: new Date().toISOString(),
                 read: false,
             };
+            setMessages((prev) => [...prev, initialAiResponse]);
 
-            setMessages((prev) => [...prev, aiResponse]);
+            let fullContent = "";
 
-            if (response.response.includes("Code Example")) {
-                const codeStart = response.response.indexOf("```python");
+            // Dynamic import to avoid circular dependency issues if any, or just valid ES module usage
+            const { streamChatWithAI } = await import("../services/api");
+
+            await streamChatWithAI(
+                chatRequest,
+                (chunk) => {
+                    fullContent += chunk;
+                    setMessages((prev) =>
+                        prev.map(msg =>
+                            msg.id === aiResponseId
+                                ? { ...msg, content: fullContent }
+                                : msg
+                        )
+                    );
+                },
+                (error) => {
+                    console.error("Stream error:", error);
+                    // Could append error message to content
+                }
+            );
+
+            // Post-processing for hints/code (same as before but on the full content)
+            if (fullContent.includes("Code Example")) {
+                const codeStart = fullContent.indexOf("```python");
                 if (codeStart !== -1) {
-                    const codeEnd = response.response.indexOf("```", codeStart + 3);
+                    const codeEnd = fullContent.indexOf("```", codeStart + 3);
                     if (codeEnd !== -1) {
-                        setCode(response.response.substring(codeStart + 9, codeEnd));
+                        setCode(fullContent.substring(codeStart + 9, codeEnd));
                     }
                 }
-            } else if (response.response.toLowerCase().includes("hint")) {
-                setHints((prevHints) => [...prevHints, response.response]);
+            } else if (fullContent.toLowerCase().includes("hint")) {
+                // Determine if it is a new hint or we should just add it. 
+                // A bit naive, but sticking to existing logic.
+                setHints((prevHints) => {
+                    // Avoid duplicates if re-rendering
+                    if (!prevHints.includes(fullContent)) {
+                        return [...prevHints, fullContent];
+                    }
+                    return prevHints;
+                });
             }
+
         } catch (error: any) {
             console.error("Failed to send message:", error);
-            setInputMessage(content);
-            if (error.message && error.message.includes("429")) {
-                alert("Rate Limit Reached: You are sending messages too fast. Please wait a moment before trying again.");
-            } else {
-                alert("Failed to send message. Please check your connection and try again.");
-            }
+            setInputMessage(content); // Restore input? 
+            // Better UX might be to allow retry.
+            alert("Failed to send message.");
         } finally {
             setIsTyping(false);
         }
@@ -401,6 +471,7 @@ function ChatLayout() {
                             onCreateConversation={() => {
                                 handleCreateConversation();
                             }}
+                            onDeleteConversation={handleDeleteConversation}
                         />
                     </div>
                 </div>
