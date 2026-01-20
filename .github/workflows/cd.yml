@@ -1,4 +1,4 @@
-name: CD Pipeline (Auto Deploy to Kubernetes)
+name: Continuous Deployment
 
 on:
   workflow_run:
@@ -8,32 +8,71 @@ on:
 
 jobs:
   deploy:
-    # Run CD only if CI succeeded
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
-
     runs-on: ubuntu-latest
-
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set deployment image
+      # 0. Inject Secrets into Manifests
+      - name: Inject Secrets
+        env:
+          SECRET_KEY: ${{ secrets.SECRET_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          MONGO_URI: ${{ secrets.MONGO_URI }}
+          MONGODB_DB_NAME: ${{ secrets.MONGODB_DB_NAME || 'gta_production' }}
         run: |
-          echo "IMAGE_NAME=abhay912/gta-backend:latest" >> $GITHUB_ENV
+          # Replace placeholders in secret.yaml with actual values
+          envsubst < backend/k8s/secret.yaml > backend/k8s/secret_rendered.yaml
+          mv backend/k8s/secret_rendered.yaml backend/k8s/secret.yaml
 
-      - name: Deployment stage (Kubernetes)
-        run: |
-          echo "CI succeeded. Starting CD pipeline."
-          echo "Deploying image $IMAGE_NAME to Kubernetes cluster"
-          echo "kubectl apply -f k8s/"
-          echo "kubectl rollout status deployment gta-backend"
+      # 1. Copy Kubernetes Manifests to EC2
+      - name: Copy manifests to EC2
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          source: "backend/k8s/"
+          target: "/home/${{ secrets.EC2_USER }}/app/"
+          # Strip the 'backend/' prefix from the target path so it lands in ~/app/k8s/
+          strip_components: 1
 
-      - name: Dummy DAST stage
-        run: |
-          echo "Running basic DAST simulation"
-          echo "curl http://<service-endpoint>/health"
-          echo "No critical runtime vulnerabilities detected"
+      # 2. Deploy using SSH
+      - name: Deploy to K3s and Verify
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            echo "Applying Kubernetes manifests..."
+            # Ensure kubectl uses the default config (usual for K3s on ubuntu user if configured)
+            # or explicitly use KUBECONFIG if needed. Assuming user followed the guide to setup ~/.kube/config
+            kubectl apply -f /home/${{ secrets.EC2_USER }}/app/k8s/
+            
+            echo "Triggering rollout restart to pick up new image..."
+            kubectl rollout restart deployment gta-backend
+            
+            echo "Waiting for rollout to complete..."
+            kubectl rollout status deployment/gta-backend
+            
+            echo "Deployment successful."
 
-      - name: CD completed
-        run: |
-          echo "CD pipeline finished successfully"
+      # 3. DAST / Health Check from within the cluster
+      - name: Internal DAST Scan
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            echo "Running in-cluster DAST scan..."
+            # Run a temporary pod to curl the service
+            # --rm removes it after execution. -i logs output to stdout.
+            # We assume the service name is 'gta-backend' and port is 8000 as per service.yaml
+            
+            kubectl run dast-check-${{ github.sha }} --image=curlimages/curl --restart=Never --rm -i -- \
+              curl -fsS http://gta-backend:8000/health
+            
+            echo "DAST scan completed: Health endpoint is reachable."
