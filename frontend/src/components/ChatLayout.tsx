@@ -44,19 +44,37 @@ function ChatLayout() {
     });
     const [showSettings, setShowSettings] = useState(false);
 
-    // Load saved conversations from localStorage on mount (Consider moving to backend sync later)
+    // Load saved conversations from backend on mount
     useEffect(() => {
-        const storedConversations = localStorage.getItem(`conversations_${user?.username}`);
-        if (storedConversations) {
-            const parsedConversations: Conversation[] = JSON.parse(storedConversations);
-            setConversations(parsedConversations);
-            if (parsedConversations.length > 0) {
-                // Don't auto-select to avoid confusion, or maybe select the last one
-                // setActiveConversationId(parsedConversations[0].id);
-                // setMessages(parsedConversations[0].messages);
-                // setProblemSlug(parsedConversations[0].problemSlug || null);
+        if (!user) return;
+
+        const loadConversations = async () => {
+            try {
+                // Dynamic import to avoid circular dep if needed, or just standard import
+                const { fetchUserConversations } = await import("../services/api");
+                const data = await fetchUserConversations();
+
+                // Map backend data to frontend Conversation type
+                const mapped: Conversation[] = data.map((d: any) => ({
+                    id: d.conversation_id, // Use backend ID as local ID for simplicity
+                    conversationId: d.conversation_id,
+                    title: d.title || "Chat Session", // You might want to format this based on slug
+                    messages: [], // We don't have messages yet
+                    lastMessage: d.last_message,
+                    timestamp: d.timestamp,
+                    problemSlug: d.problem_slug
+                }));
+
+                setConversations(mapped);
+
+                // If we have conversations but no active one, potentially select first? 
+                // Or just leave it blank.
+            } catch (error) {
+                console.error("Failed to load conversations:", error);
             }
-        }
+        };
+
+        loadConversations();
     }, [user?.username]);
 
     // Sync current messages and problemSlug back to the conversations array
@@ -67,7 +85,7 @@ function ChatLayout() {
                     conv.id === activeConversationId
                         ? {
                             ...conv,
-                            messages,
+                            messages, // We are updating the local state with currently loaded messages
                             problemSlug,
                             lastMessage: messages.length > 0 ? messages[messages.length - 1].content : conv.lastMessage,
                             timestamp: messages.length > 0 ? messages[messages.length - 1].timestamp : conv.timestamp
@@ -78,12 +96,15 @@ function ChatLayout() {
         }
     }, [messages, problemSlug, activeConversationId]);
 
-    // Save conversations to localStorage whenever they change
-    useEffect(() => {
-        if (user?.username) {
-            localStorage.setItem(`conversations_${user.username}`, JSON.stringify(conversations));
-        }
-    }, [conversations, user?.username]);
+    // Save conversations to localStorage - REMOVED or kept as backup?
+    // User said "previous conversations get deleted". If we rely on backend, we don't strictly need localStorage sync 
+    // EXCEPT maybe for unsaved drafts or offline? For now, let's DISABLE localStorage write to avoid conflicts
+    // unless we want to use it for faster initial load.
+    // useEffect(() => {
+    //     if (user?.username) {
+    //         localStorage.setItem(`conversations_${user.username}`, JSON.stringify(conversations));
+    //     }
+    // }, [conversations, user?.username]);
 
     // Apply theme class to HTML element
     useEffect(() => {
@@ -130,13 +151,14 @@ function ChatLayout() {
 
     // Callback to create a new conversation
     const handleCreateConversation = (): Conversation => {
+        const newUuid = uuidv4();
         const newConversation: Conversation = {
-            id: generateUniqueId(),
-            conversationId: uuidv4(),
+            id: newUuid, // Use UUID for both
+            conversationId: newUuid,
             title: "New Conversation",
             messages: [],
             lastMessage: "",
-            timestamp: "",
+            timestamp: new Date().toISOString(),
             problemSlug: null,
         };
 
@@ -159,9 +181,11 @@ function ChatLayout() {
         if (activeConversationId === conversationId) {
             // If we strictly want to clear, we can. Or pick the first one.
             if (newConversations.length > 0) {
-                setActiveConversationId(newConversations[0].id);
-                setMessages(newConversations[0].messages);
-                setProblemSlug(newConversations[0].problemSlug || null);
+                // If we switch, we should probably trigger a select? 
+                // For now just clearing state is safer to avoid auto-fetch loops
+                setActiveConversationId(null);
+                setMessages([]);
+                setProblemSlug(null);
             } else {
                 setActiveConversationId(null);
                 setMessages([]);
@@ -174,6 +198,23 @@ function ChatLayout() {
         } catch (error) {
             console.error("Failed to delete conversation:", error);
             // Revert if needed, but for now we trust it works or user refreshes.
+        }
+    }
+
+    const handleRenameConversation = async (conversationId: string, newTitle: string) => {
+        // Optimistic Update
+        setConversations(prev => prev.map(c =>
+            c.id === conversationId ? { ...c, title: newTitle } : c
+        ));
+
+        const conversation = conversations.find(c => c.id === conversationId);
+        if (conversation) {
+            try {
+                await import("../services/api").then(mod => mod.renameConversation(conversation.conversationId, newTitle));
+            } catch (error) {
+                console.error("Failed to rename", error);
+                // Could revert here
+            }
         }
     }
 
@@ -209,14 +250,52 @@ function ChatLayout() {
         setShowSidebar(!showSidebar);
     };
 
-    const handleSelectConversation = (conversationId: string) => {
+    const handleSelectConversation = async (conversationId: string) => {
         setActiveConversationId(conversationId);
         const conversation = conversations.find(
             (conv) => conv.id === conversationId
         );
         if (conversation) {
-            setMessages(conversation.messages);
+            setMessages(conversation.messages); // Set initial (likely empty if fresh load)
             setProblemSlug(conversation.problemSlug || null);
+
+            // Fetch full history from backend
+            try {
+                const { fetchChatHistory } = await import("../services/api");
+                const historyItems = await fetchChatHistory(conversation.conversationId);
+
+                // Convert ChatHistoryItem to Message
+                const messagesFromBackend: Message[] = [];
+                historyItems.forEach((item, idx) => {
+                    // User message
+                    messagesFromBackend.push({
+                        id: `hist-${conversationId}-${idx}-u`,
+                        content: item.question,
+                        sender: 'user',
+                        timestamp: new Date().toISOString(), // Mock timestamp if not in history item
+                        read: true
+                    });
+                    // AI response
+                    if (item.response) {
+                        messagesFromBackend.push({
+                            id: `hist-${conversationId}-${idx}-a`,
+                            content: item.response,
+                            sender: 'ai',
+                            timestamp: new Date().toISOString(),
+                            read: true
+                        });
+                    }
+                });
+
+                setMessages(messagesFromBackend);
+
+                // Update local conversation object with fetched messages so we don't re-fetch needlessly?
+                // Or just keep it ephemeral in 'messages' state. 
+                // Given we sync back in useEffect, this will update 'conversations' state too.
+
+            } catch (e) {
+                console.error("Failed to fetch history", e);
+            }
         }
     };
 
@@ -472,6 +551,7 @@ function ChatLayout() {
                                 handleCreateConversation();
                             }}
                             onDeleteConversation={handleDeleteConversation}
+                            onRenameConversation={handleRenameConversation}
                         />
                     </div>
                 </div>

@@ -146,6 +146,7 @@ Now, respond accordingly and continue guiding the user from where the conversati
                         "user_id": current_user.username,
                         "question": request.question,
                         "conversation_id": request.conversation_id,
+                        "problem_slug": request.problem_slug,
                         "response": full_response,
                         "timestamp": datetime.now().isoformat()
                     })
@@ -169,6 +170,66 @@ Now, respond accordingly and continue guiding the user from where the conversati
 def fetch_history(conversation_id: str, current_user: User = Depends(get_current_user)) -> List[Dict[str, str]]:
     return get_user_chat_history(current_user.username, conversation_id)
 
+
+@router.get("/conversations")
+def get_conversations(current_user: User = Depends(get_current_user)):
+    try:
+        pipeline = [
+            {"$match": {"user_id": current_user.username}},
+            {"$sort": {"timestamp": -1}}, 
+            {"$group": {
+                "_id": "$conversation_id",
+                "last_message": {"$first": "$response"},
+                "timestamp": {"$first": "$timestamp"},
+                "problem_slug": {"$first": "$problem_slug"},
+                "title": {"$first": "$title"} # Try to get custom title
+            }},
+            {"$sort": {"timestamp": -1}}
+        ]
+        
+        conversations_agg = list(chat_collection.aggregate(pipeline))
+        
+        results = []
+        for conv in conversations_agg:
+             # Title logic: Use saved title -> Format slug -> Default
+             title = conv.get("title")
+             if not title and conv.get("problem_slug"):
+                 # "two-sum" -> "Two Sum"
+                 title = " ".join(word.capitalize() for word in conv["problem_slug"].split("-"))
+             if not title:
+                 title = "New Chat"
+
+             results.append({
+                 "conversation_id": conv["_id"],
+                 "title": title,
+                 "last_message": conv.get("last_message", "")[:100], # Send a bit more for preview
+                 "timestamp": conv.get("timestamp"),
+                 "problem_slug": conv.get("problem_slug")
+             })
+             
+        return results
+    except Exception as e:
+         logging.error(f"Error fetching conversations: {e}")
+         raise HTTPException(status_code=500, detail="Failed to fetch conversations")
+
+@router.patch("/history/{conversation_id}")
+def rename_conversation(conversation_id: str, payload: Dict[str, str], current_user: User = Depends(get_current_user)):
+    new_title = payload.get("title")
+    if not new_title:
+        raise HTTPException(status_code=400, detail="Title is required")
+
+    # Update all messages in this conversation with the new title
+    # This acts as a persistent metadata update since we aggregate from messages
+    result = chat_collection.update_many(
+        {"conversation_id": conversation_id, "user_id": current_user.username},
+        {"$set": {"title": new_title}}
+    )
+    
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+        
+    return {"message": "Conversation renamed", "title": new_title}
+
 @router.delete("/history/{conversation_id}")
 def delete_conversation(conversation_id: str, current_user: User = Depends(get_current_user)):
     result = chat_collection.delete_many({
@@ -176,9 +237,6 @@ def delete_conversation(conversation_id: str, current_user: User = Depends(get_c
         "user_id": current_user.username
     })
     if result.deleted_count == 0:
-        # It's possible the chat didn't exist, which is fine, 
-        # or it belonged to another user (security check passed by filter).
-        # We can just return success or info.
         return {"message": "Conversation deleted or not found"}
     
     return {"message": f"Deleted {result.deleted_count} messages for conversation {conversation_id}"}

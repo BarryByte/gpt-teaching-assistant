@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_BASE_URL = "http://localhost:8000";
+const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
 // Create Axios instance
 const api = axios.create({
@@ -168,8 +168,18 @@ export async function fetchChatHistory(conversationId: string): Promise<ChatHist
   return response.data;
 }
 
+export async function fetchUserConversations(): Promise<any[]> {
+  const response = await api.get("/conversations");
+  return response.data;
+}
+
+
 export async function deleteConversation(conversationId: string): Promise<void> {
   await api.delete(`/history/${conversationId}`);
+}
+
+export async function renameConversation(conversationId: string, title: string): Promise<void> {
+  await api.patch(`/history/${conversationId}`, { title });
 }
 
 export default api;
