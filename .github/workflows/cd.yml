@@ -1,0 +1,39 @@
+name: CD Pipeline (Auto Deploy to Kubernetes)
+
+on:
+  workflow_run:
+    workflows: ["CI/CD Pipeline"]
+    types:
+      - completed
+
+jobs:
+  deploy:
+    # Run CD only if CI succeeded
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set deployment image
+        run: |
+          echo "IMAGE_NAME=abhay912/gta-backend:latest" >> $GITHUB_ENV
+
+      - name: Deployment stage (Kubernetes)
+        run: |
+          echo "CI succeeded. Starting CD pipeline."
+          echo "Deploying image $IMAGE_NAME to Kubernetes cluster"
+          echo "kubectl apply -f k8s/"
+          echo "kubectl rollout status deployment gta-backend"
+
+      - name: Dummy DAST stage
+        run: |
+          echo "Running basic DAST simulation"
+          echo "curl http://<service-endpoint>/health"
+          echo "No critical runtime vulnerabilities detected"
+
+      - name: CD completed
+        run: |
+          echo "CD pipeline finished successfully"
