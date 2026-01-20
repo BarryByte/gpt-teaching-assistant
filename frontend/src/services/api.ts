@@ -125,7 +125,8 @@ export async function chatWithAI(requestData: ChatRequest): Promise<ChatResponse
 export async function streamChatWithAI(
   requestData: ChatRequest,
   onChunk: (chunk: string) => void,
-  onError: (error: any) => void
+  onError: (error: any) => void,
+  delayMs: number = 50 // smooth typewriter effect
 ): Promise<void> {
   try {
     const token = localStorage.getItem("token");
@@ -155,7 +156,15 @@ export async function streamChatWithAI(
       const { done, value } = await reader.read();
       if (done) break;
       const chunk = decoder.decode(value, { stream: true });
-      onChunk(chunk);
+
+      // Typewriter effect: split chunk into characters and delay
+      for (const char of chunk) {
+        onChunk(char);
+        // Small delay per character to slow down the visual stream
+        if (delayMs > 0) {
+          await new Promise(resolve => setTimeout(resolve, delayMs));
+        }
+      }
     }
   } catch (error) {
     onError(error);

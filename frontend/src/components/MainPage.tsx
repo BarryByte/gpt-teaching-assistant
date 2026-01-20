@@ -170,10 +170,10 @@ function MainPage({
                 onChange={(e) => setInputMessage(e.target.value)}
                 onKeyDown={handleKeyDown}
                 placeholder="Ask a question or explain your approach..."
-                className="w-full p-6 focus:outline-hidden bg-transparent resize-none min-h-[80px] max-h-[200px] text-sm md:text-base leading-relaxed"
+                className="w-full pt-4 px-4 focus:outline-hidden bg-transparent resize-none min-h-[80px] max-h-[200px] text-sm md:text-base leading-relaxed"
                 rows={1}
               />
-              <div className="flex items-center justify-between px-6 py-4 border-t border-gray-50 dark:border-gray-800/50">
+              <div className="flex items-center justify-between px-6 pb-2 border-t border-gray-50 dark:border-gray-800/50">
                 <div className="flex items-center text-xs text-text-muted-light dark:text-text-muted-dark font-medium">
                   <Zap className="w-3.5 h-3.5 mr-2 text-primary" />
                   AI Tutor is active
@@ -181,7 +181,7 @@ function MainPage({
                 <button
                   onClick={handleSendClick}
                   disabled={!inputMessage.trim() || isTyping}
-                  className="bg-primary hover:bg-primary-dark disabled:opacity-30 disabled:hover:bg-primary text-white p-2.5 rounded-2xl transition-all shadow-lg shadow-primary/20 shadow-primary/25 active:scale-95"
+                  className="bg-primary hover:bg-primary-dark disabled:opacity-30 disabled:hover:bg-primary text-white p-3 rounded-2xl transition-all shadow-lg shadow-primary/20 shadow-primary/25 active:scale-95"
                 >
                   <Send className="w-5 h-5" />
                 </button>

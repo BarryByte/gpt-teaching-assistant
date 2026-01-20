@@ -128,7 +128,7 @@ Now, respond accordingly and continue guiding the user from where the conversati
 """
 
         # 4. Generate Content with Gemini (STREAMING)
-        model = genai.GenerativeModel('gemini-2.5-flash')
+        model = genai.GenerativeModel('gemini-2.5-flash-lite')
         
         async def response_generator():
             full_response = ""
