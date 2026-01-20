@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: gta-backend
+spec:
+  type: ClusterIP
+  selector:
+    app: gta-backend
+  ports:
+    - protocol: TCP
+      port: 8000
+      targetPort: 8000
