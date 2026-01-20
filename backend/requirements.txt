@@ -9,3 +9,8 @@ pydantic
 passlib[bcrypt]
 python-jose[cryptography]
 python-multipart
+pytest
+pytest-asyncio
+pytest-mock
+httpx
+ruff

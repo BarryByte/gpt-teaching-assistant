@@ -1,18 +1,21 @@
-import requests
 import json
 import os
+
+import requests
 from bs4 import BeautifulSoup
+
 
 def clean_text(text):
     """Removes extra newlines, spaces, and formatting artifacts."""
-    return ' '.join(text.split()).strip()
+    return " ".join(text.split()).strip()
+
 
 def get_leetcode_problem_data(slug):
     url = "https://leetcode.com/graphql"
     headers = {
         "User-Agent": "Mozilla/5.0",
         "Content-Type": "application/json",
-        "Referer": f"https://leetcode.com/problems/{slug}/"
+        "Referer": f"https://leetcode.com/problems/{slug}/",
     }
 
     query = {
@@ -27,7 +30,7 @@ def get_leetcode_problem_data(slug):
                 stats
             }
         }""",
-        "variables": {"titleSlug": slug}
+        "variables": {"titleSlug": slug},
     }
 
     response = requests.post(url, headers=headers, json=query)
@@ -52,7 +55,7 @@ def get_leetcode_problem_data(slug):
     clean_hints = [clean_text(hint) for hint in hints]
 
     # Extract problem stats
-    stats = json.loads(question.get("stats", "{}"))
+    # stats = json.loads(question.get("stats", "{}"))
 
     # Structured output
     problem_data = {
@@ -61,10 +64,10 @@ def get_leetcode_problem_data(slug):
         "tags": [tag["name"] for tag in question.get("topicTags", [])],
         "description": description_text,
         "hints": clean_hints if clean_hints else None,
-        
     }
 
     return problem_data
+
 
 def save_problem_data(slug, data):
     """Ensure the directory exists and save the problem data into a JSON file."""
@@ -76,6 +79,7 @@ def save_problem_data(slug, data):
         json.dump(data, f, indent=4, ensure_ascii=False)
 
     print(f"Saved: {filename}")
+
 
 # Example usage
 slug = "majority-element"

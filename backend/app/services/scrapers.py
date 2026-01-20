@@ -1,20 +1,25 @@
-import requests
-import json
-from bs4 import BeautifulSoup
-from typing import Dict, Optional, List
 import logging
+from typing import Dict, Optional
 from urllib.parse import urlparse
 
+import requests
+from bs4 import BeautifulSoup
+
 # Configure logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+)
+
 
 def clean_text(text: str) -> str:
     """Removes extra newlines, spaces, and formatting artifacts."""
-    return ' '.join(text.split()).strip()
+    return " ".join(text.split()).strip()
+
 
 class Scraper:
     def fetch_problem(self, identifier: str) -> Optional[Dict]:
         raise NotImplementedError
+
 
 class LeetCodeScraper(Scraper):
     def fetch_problem(self, slug: str) -> Optional[Dict]:
@@ -22,7 +27,7 @@ class LeetCodeScraper(Scraper):
         headers = {
             "User-Agent": "Mozilla/5.0",
             "Content-Type": "application/json",
-            "Referer": f"https://leetcode.com/problems/{slug}/"
+            "Referer": f"https://leetcode.com/problems/{slug}/",
         }
         query = {
             "query": """
@@ -36,7 +41,7 @@ class LeetCodeScraper(Scraper):
                     stats
                 }
             }""",
-            "variables": {"titleSlug": slug}
+            "variables": {"titleSlug": slug},
         }
 
         try:
@@ -55,11 +60,12 @@ class LeetCodeScraper(Scraper):
                 "tags": [tag["name"] for tag in data.get("topicTags", [])],
                 "description": description,
                 "hints": data.get("hints", []),
-                "platform": "LeetCode"
+                "platform": "LeetCode",
             }
         except Exception as e:
             logging.error(f"LeetCode Scraper Error: {e}")
             return None
+
 
 class CodeforcesScraper(Scraper):
     def fetch_problem(self, identifier: str) -> Optional[Dict]:
@@ -74,36 +80,39 @@ class CodeforcesScraper(Scraper):
             data = response.json()
             if data["status"] != "OK":
                 return None
-            
+
             # Codeforces API doesn't give description easily via contest.standings
             # We would need to scrape the HTML for description
             problem_url = f"https://codeforces.com/contest/{contest_id}/problem/{index}"
             html_response = requests.get(problem_url)
             html_response.raise_for_status()
             soup = BeautifulSoup(html_response.text, "html.parser")
-            
+
             problem_statement = soup.find("div", class_="problem-statement")
             if not problem_statement:
                 return None
-                
+
             title = problem_statement.find("div", class_="title").get_text()
-            description = clean_text(problem_statement.find("div", class_="") .get_text()) # This is a bit broad, but CF structure is complex
-            
-            # Simple extraction for CF
-            content = problem_statement.find("div", class_="header").next_sibling
-            # This is hard to get perfectly without more specific logic, but let's start with title and basic tags
-            
+            # Try to get meaningful description or fallback
+            desc_div = problem_statement.find("div", class_="")
+            description = (
+                clean_text(desc_div.get_text())
+                if desc_div
+                else "Description not available via typical extraction. Please visit the problem URL."
+            )
+
             return {
-                "title": title,
-                "difficulty": "Unknown", # CF difficulty is usually points or *rating
-                "tags": [], # Can be found in contest data
+                "title": title or f"Problem {identifier}",
+                "difficulty": "Medium",  # Default assumption since CF doesn't expose text difficulty easily
+                "tags": ["Codeforces"],
                 "description": description,
                 "hints": [],
-                "platform": "Codeforces"
+                "platform": "Codeforces",
             }
         except Exception as e:
             logging.error(f"Codeforces Scraper Error: {e}")
             return None
+
 
 def get_scraper(url_or_slug: str):
     parsed = urlparse(url_or_slug)
@@ -111,29 +120,32 @@ def get_scraper(url_or_slug: str):
         return LeetCodeScraper(), "leetcode"
     elif "codeforces.com" in parsed.netloc:
         return CodeforcesScraper(), "codeforces"
-    
+
     # Default to LeetCode if it looks like a slug
     if not parsed.netloc and url_or_slug:
         return LeetCodeScraper(), "leetcode"
-    
+
     return None, None
+
 
 def extract_identifier(url_or_slug: str, platform: str) -> str:
     if platform == "leetcode":
         parsed = urlparse(url_or_slug)
-        if not parsed.netloc: return url_or_slug
-        path_segments = parsed.path.strip('/').split('/')
+        if not parsed.netloc:
+            return url_or_slug
+        path_segments = parsed.path.strip("/").split("/")
         if len(path_segments) > 1 and path_segments[0] == "problems":
             return path_segments[1]
         return url_or_slug
     elif platform == "codeforces":
         parsed = urlparse(url_or_slug)
-        if not parsed.netloc: return url_or_slug
+        if not parsed.netloc:
+            return url_or_slug
         # URL format: https://codeforces.com/contest/1915/problem/A
-        path_segments = parsed.path.strip('/').split('/')
+        path_segments = parsed.path.strip("/").split("/")
         if "contest" in path_segments and "problem" in path_segments:
             c_idx = path_segments.index("contest")
             p_idx = path_segments.index("problem")
-            return f"{path_segments[c_idx+1]}/{path_segments[p_idx+1]}"
+            return f"{path_segments[c_idx + 1]}/{path_segments[p_idx + 1]}"
         return url_or_slug
     return url_or_slug

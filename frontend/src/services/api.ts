@@ -126,7 +126,7 @@ export async function streamChatWithAI(
   requestData: ChatRequest,
   onChunk: (chunk: string) => void,
   onError: (error: any) => void,
-  delayMs: number = 50 // smooth typewriter effect
+  delayMs: number = 8 // smooth typewriter effect
 ): Promise<void> {
   try {
     const token = localStorage.getItem("token");
