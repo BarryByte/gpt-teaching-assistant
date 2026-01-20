@@ -14,3 +14,5 @@ pytest-asyncio
 pytest-mock
 httpx
 ruff
+bandit
+pip-audit

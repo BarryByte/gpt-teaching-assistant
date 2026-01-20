@@ -1,0 +1,119 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+env:
+  # Inject secrets
+  SECRET_KEY: ${{ secrets.SECRET_KEY }}
+  GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+  # Mock Mongo URI for tests if not using service container
+  MONGO_URI: "mongodb://localhost:27017" 
+  MONGODB_DB_NAME: "testdb"
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    services:
+      # efficient mongodb service for tests
+      mongo:
+        image: mongo:latest
+        ports:
+          - 27017:27017
+    
+    steps:
+    # 1. Checkout
+    - uses: actions/checkout@v4
+
+    # 2. Setup Python
+    - name: Set up Python 3.12
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.12"
+        cache: 'pip'
+
+    # 3. Install Dependencies
+    - name: Install dependencies
+      if: steps.cache-pip.outputs.cache-hit != 'true'
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r backend/requirements.txt
+
+    # 4. Linting (Ruff)
+    - name: Run Ruff Linting
+      working-directory: ./backend
+      run: |
+        ruff check .
+        ruff format --check .
+
+    # 5. SAST (Bandit)
+    - name: Run Bandit SAST
+      working-directory: ./backend
+      # Recursive, exclude tests/env, exit non-zero on Medium/High severity
+      run: bandit -r -x ./tests,./myenv -ll .
+
+    # 6. SCA (Pip-Audit)
+    - name: Run Pip-Audit SCA
+      working-directory: ./backend
+      # Scan installed environment
+      run: pip-audit
+
+    # 7. Unit Tests
+    - name: Run Tests
+      working-directory: ./backend
+      env:
+        # Override mongo uri to point to service
+        MONGO_URI: "mongodb://localhost:27017"
+      run: pytest
+
+    # 8. Docker Build
+    - name: Build Docker Image
+      run: |
+        docker build -t gta-backend:${{ github.sha }} ./backend
+
+    # 9. Container Scan (Trivy)
+    - name: Run Trivy Vulnerability Scanner
+      uses: aquasecurity/trivy-action@master
+      with:
+        image-ref: 'gta-backend:${{ github.sha }}'
+        format: 'table'
+        exit-code: '1'
+        ignore-unfixed: true
+        vuln-type: 'os,library'
+        severity: 'CRITICAL,HIGH'
+
+    # 10. Container Smoke Test
+    - name: Smoke Test (Health Check)
+      run: |
+        docker run -d --name test-container -p 8000:8000 \
+          -e SECRET_KEY="ci-secret-key" \
+          -e GEMINI_API_KEY="ci-api-key" \
+          -e MONGO_URI="mongodb://mongo:27017" \
+          -e MONGODB_DB_NAME="testdb" \
+          gta-backend:${{ github.sha }}
+        
+        echo "Waiting for container to start..."
+        sleep 10
+        
+        echo "Checking health endpoint..."
+        curl --fail --retry 5 --retry-delay 2 http://localhost:8000/health
+        
+        docker STOP test-container
+
+    # 11. Docker Push (Only on main push)
+    - name: Login to DockerHub
+      if: github.event_name != 'pull_request'
+      uses: docker/login-action@v3
+      with:
+        username: ${{ secrets.DOCKERHUB_USERNAME }}
+        password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+    - name: Push to DockerHub
+      if: github.event_name != 'pull_request'
+      run: |
+        docker tag gta-backend:${{ github.sha }} ${{ secrets.DOCKERHUB_USERNAME }}/gta-backend:${{ github.sha }}
+        docker tag gta-backend:${{ github.sha }} ${{ secrets.DOCKERHUB_USERNAME }}/gta-backend:latest
+        docker push ${{ secrets.DOCKERHUB_USERNAME }}/gta-backend:${{ github.sha }}
+        docker push ${{ secrets.DOCKERHUB_USERNAME }}/gta-backend:latest

@@ -45,7 +45,7 @@ class LeetCodeScraper(Scraper):
         }
 
         try:
-            response = requests.post(url, headers=headers, json=query)
+            response = requests.post(url, headers=headers, json=query, timeout=10)
             response.raise_for_status()
             data = response.json().get("data", {}).get("question", {})
             if not data:
@@ -75,7 +75,7 @@ class CodeforcesScraper(Scraper):
                 return None
             contest_id, index = identifier.split("/")
             url = f"https://codeforces.com/api/contest.standings?contestId={contest_id}&from=1&count=1"
-            response = requests.get(url)
+            response = requests.get(url, timeout=10)
             response.raise_for_status()
             data = response.json()
             if data["status"] != "OK":
@@ -84,7 +84,7 @@ class CodeforcesScraper(Scraper):
             # Codeforces API doesn't give description easily via contest.standings
             # We would need to scrape the HTML for description
             problem_url = f"https://codeforces.com/contest/{contest_id}/problem/{index}"
-            html_response = requests.get(problem_url)
+            html_response = requests.get(problem_url, timeout=10)
             html_response.raise_for_status()
             soup = BeautifulSoup(html_response.text, "html.parser")
 

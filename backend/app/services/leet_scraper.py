@@ -33,7 +33,7 @@ def get_leetcode_problem_data(slug):
         "variables": {"titleSlug": slug},
     }
 
-    response = requests.post(url, headers=headers, json=query)
+    response = requests.post(url, headers=headers, json=query, timeout=10)
     if response.status_code != 200:
         print(f"Error fetching {slug}: {response.status_code} {response.reason}")
         return None
