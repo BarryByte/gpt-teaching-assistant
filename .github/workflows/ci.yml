@@ -93,12 +93,15 @@ jobs:
           gta-backend:${{ github.sha }}
         
         echo "Waiting for container to start..."
-        sleep 25
-        
+        sleep 15
+
+        echo "Container logs:"
+        docker logs test-container || true
+
         echo "Checking health endpoint..."
-        curl --fail --retry 10 --retry-delay 3 http://localhost:8000/health
-        
-        docker stop test-container
+        curl --fail --retry 5 --retry-delay 3 http://localhost:8000/health
+
+        docker stop test-container || true
 
     # 11. Docker Push (Only on main push)
     - name: Login to DockerHub

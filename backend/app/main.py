@@ -22,12 +22,6 @@ app.include_router(
 )  # /signup, /token, /users/me are at root or we can prefix
 app.include_router(chat_router)  # /chat, etc.
 
-# We might want to prefix them for better structure, e.g. /api/v1
-# But to maintain frontend compatibility without changing EVERY URL right now,
-# I will keep them as is or ensure frontend is updated.
-# The user asked to make it production ready.
-# Let's see: `auth.py` has `/signup`, `/token`. `chat.py` has `/chat`.
-# The imports above just add them to the app.
 
 
 @app.get("/health")

@@ -8,20 +8,21 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from google.api_core import exceptions
 
-from app.core.config import settings
+from app.core.config import settings, require_gemini_key
 from app.core.security import get_current_user
-from app.db.database import chat_collection
+from app.db.database import get_chat_collection
 from app.models.schemas import ChatRequest, User
 from app.services.scraper_service import get_problem_data
 
 # Initialize Gemini
-genai.configure(api_key=settings.GEMINI_API_KEY)
+
 
 router = APIRouter()
 
 
 # --- Helpers ---
 def get_user_chat_history(username: str, conversation_id: str) -> List[Dict[str, str]]:
+    chat_collection = get_chat_collection()
     history = list(
         chat_collection.find(
             {"user_id": username, "conversation_id": conversation_id},
@@ -60,6 +61,10 @@ def fetch_problem_summary(problem_identifier: str):
 @router.post("/chat")
 async def chat(request: ChatRequest, current_user: User = Depends(get_current_user)):
     try:
+        # Initialize Gemini and validate key
+        api_key = require_gemini_key()
+        genai.configure(api_key=api_key)
+
         logging.info(
             f"Received chat request from {current_user.username} for problem: {request.problem_slug}"
         )
@@ -159,6 +164,7 @@ Now, respond accordingly and continue guiding the user from where the conversati
 
                 # After streaming is complete, save to DB
                 try:
+                    chat_collection = get_chat_collection()
                     chat_collection.insert_one(
                         {
                             "user_id": current_user.username,
@@ -211,6 +217,9 @@ def get_conversations(current_user: User = Depends(get_current_user)):
             {"$sort": {"timestamp": -1}},
         ]
 
+
+
+        chat_collection = get_chat_collection()
         conversations_agg = list(chat_collection.aggregate(pipeline))
 
         results = []
@@ -255,6 +264,7 @@ def rename_conversation(
 
     # Update all messages in this conversation with the new title
     # This acts as a persistent metadata update since we aggregate from messages
+    chat_collection = get_chat_collection()
     result = chat_collection.update_many(
         {"conversation_id": conversation_id, "user_id": current_user.username},
         {"$set": {"title": new_title}},
@@ -270,6 +280,7 @@ def rename_conversation(
 def delete_conversation(
     conversation_id: str, current_user: User = Depends(get_current_user)
 ):
+    chat_collection = get_chat_collection()
     result = chat_collection.delete_many(
         {"conversation_id": conversation_id, "user_id": current_user.username}
     )

@@ -10,7 +10,7 @@ from app.core.security import (
     get_password_hash,
     verify_password,
 )
-from app.db.database import users_collection
+from app.db.database import get_users_collection
 from app.models.schemas import Token, UserCreate
 
 router = APIRouter()
@@ -18,6 +18,7 @@ router = APIRouter()
 
 @router.post("/signup", status_code=status.HTTP_201_CREATED)
 async def signup(user: UserCreate):
+    users_collection = get_users_collection()
     if users_collection.find_one({"username": user.username}):
         raise HTTPException(status_code=400, detail="Username already registered")
 
@@ -34,6 +35,7 @@ async def signup(user: UserCreate):
 
 @router.post("/token", response_model=Token)
 async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends()):
+    users_collection = get_users_collection()
     user_doc = users_collection.find_one({"username": form_data.username})
     if not user_doc or not verify_password(
         form_data.password, user_doc["hashed_password"]

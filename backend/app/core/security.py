@@ -6,8 +6,8 @@ from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 
-from app.core.config import settings
-from app.db.database import users_collection
+from app.core.config import settings, require_secret_key
+from app.db.database import get_users_collection
 from app.models.schemas import UserInDB
 
 pwd_context = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto")
@@ -23,6 +23,7 @@ def get_password_hash(password):
 
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
+    secret_key = require_secret_key()
     to_encode = data.copy()
     if expires_delta:
         expire = datetime.utcnow() + expires_delta
@@ -30,12 +31,13 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
         expire = datetime.utcnow() + timedelta(minutes=15)
     to_encode.update({"exp": expire})
     encoded_jwt = jwt.encode(
-        to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM
+        to_encode, secret_key, algorithm=settings.ALGORITHM
     )
     return encoded_jwt
 
 
 async def get_current_user(token: str = Depends(oauth2_scheme)):
+    secret_key = require_secret_key()
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
@@ -43,7 +45,7 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
     )
     try:
         payload = jwt.decode(
-            token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM]
+            token, secret_key, algorithms=[settings.ALGORITHM]
         )
         username: str = payload.get("sub")
         if username is None:
@@ -51,6 +53,7 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
     except JWTError:
         raise credentials_exception
 
+    users_collection = get_users_collection()
     user_doc = users_collection.find_one({"username": username})
     if user_doc is None:
         raise credentials_exception
