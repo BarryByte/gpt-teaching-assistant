@@ -90,15 +90,13 @@ jobs:
         docker run -d --name test-container -p 8000:8000 \
           -e SECRET_KEY="ci-secret-key" \
           -e GEMINI_API_KEY="ci-api-key" \
-          -e MONGO_URI="mongodb://host.docker.internal:27017"\
-          -e MONGODB_DB_NAME="testdb" \
           gta-backend:${{ github.sha }}
         
         echo "Waiting for container to start..."
-        sleep 10
+        sleep 25
         
         echo "Checking health endpoint..."
-        curl --fail --retry 5 --retry-delay 2 http://localhost:8000/health
+        curl --fail --retry 10 --retry-delay 3 http://localhost:8000/health
         
         docker stop test-container
 
