@@ -23,7 +23,6 @@ app.include_router(
 app.include_router(chat_router)  # /chat, etc.
 
 
-
 @app.get("/health")
 def health_check():
     return {"status": "ok"}

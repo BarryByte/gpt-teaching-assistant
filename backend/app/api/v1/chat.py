@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from google.api_core import exceptions
 
-from app.core.config import settings, require_gemini_key
+from app.core.config import require_gemini_key
 from app.core.security import get_current_user
 from app.db.database import get_chat_collection
 from app.models.schemas import ChatRequest, User
@@ -216,8 +216,6 @@ def get_conversations(current_user: User = Depends(get_current_user)):
             },
             {"$sort": {"timestamp": -1}},
         ]
-
-
 
         chat_collection = get_chat_collection()
         conversations_agg = list(chat_collection.aggregate(pipeline))

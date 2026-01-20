@@ -40,7 +40,9 @@ def require_mongo_config() -> tuple[str, str]:
     uri = settings.MONGO_URI
     db_name = settings.MONGODB_DB_NAME
     if not uri or not db_name:
-        raise RuntimeError("MongoDB configuration (MONGO_URI, MONGODB_DB_NAME) is missing")
+        raise RuntimeError(
+            "MongoDB configuration (MONGO_URI, MONGODB_DB_NAME) is missing"
+        )
     return uri, db_name
 
 
