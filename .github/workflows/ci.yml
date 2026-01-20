@@ -90,7 +90,7 @@ jobs:
         docker run -d --name test-container -p 8000:8000 \
           -e SECRET_KEY="ci-secret-key" \
           -e GEMINI_API_KEY="ci-api-key" \
-          -e MONGO_URI="mongodb://mongo:27017" \
+          -e MONGO_URI="mongodb://host.docker.internal:27017"\
           -e MONGODB_DB_NAME="testdb" \
           gta-backend:${{ github.sha }}
         
@@ -100,7 +100,7 @@ jobs:
         echo "Checking health endpoint..."
         curl --fail --retry 5 --retry-delay 2 http://localhost:8000/health
         
-        docker STOP test-container
+        docker stop test-container
 
     # 11. Docker Push (Only on main push)
     - name: Login to DockerHub
