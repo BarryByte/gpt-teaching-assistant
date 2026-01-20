@@ -53,9 +53,12 @@ def mock_gemini(mocker):
 
 @pytest.fixture
 def mock_mongo(mocker):
-    """Mocks MongoDB interactions to avoid database dependency."""
-    mock_db = mocker.patch("app.api.v1.chat.chat_collection")
-    return mock_db
+    mock_collection = MagicMock()
+    mocker.patch(
+        "app.api.v1.chat.get_chat_collection",
+        return_value=mock_collection,
+    )
+    return mock_collection
 
 
 @pytest.fixture
