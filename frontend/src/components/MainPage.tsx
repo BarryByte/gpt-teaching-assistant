@@ -130,7 +130,7 @@ function MainPage({
             <div className="w-24 h-24 rounded-3xl bg-primary/10 flex items-center justify-center mb-8 rotate-3">
               <MessageSquare className="h-12 w-12 text-primary" />
             </div>
-            <h3 className="text-2xl font-bold mb-4">Start your session</h3>
+            <h3 className="text-2xl font-bold mb-4">Start your viva session</h3>
             <p className="text-text-secondary-light dark:text-text-secondary-dark max-w-sm leading-relaxed">
               Paste a problem link above to start a guided learning session with TeachAI.
             </p>

@@ -6,24 +6,24 @@ import ChatLayout from "./components/ChatLayout";
 // import LandingPage from "./components/LandingPage";
 
 // Protected Route Component
-const ProtectedRoute = ({ children }: { children: JSX.Element }) => {
-  const { user, loading } = useAuth();
-  const location = useLocation();
+// const ProtectedRoute = ({ children }: { children: JSX.Element }) => {
+//   const { user, loading } = useAuth();
+//   const location = useLocation();
 
-  if (loading) {
-    return (
-      <div className="h-screen flex items-center justify-center bg-gray-50 dark:bg-[#0f1117]">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-      </div>
-    );
-  }
+//   if (loading) {
+//     return (
+//       <div className="h-screen flex items-center justify-center bg-gray-50 dark:bg-[#0f1117]">
+//         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+//       </div>
+//     );
+//   }
 
-  if (!user) {
-    return <Navigate to="/login" state={{ from: location }} replace />;
-  }
+//   if (!user) {
+//     return <Navigate to="/login" state={{ from: location }} replace />;
+//   }
 
-  return children;
-};
+//   return children;
+// };
 
 // Public Route Component (redirects to chat if already logged in)
 const PublicRoute = ({ children }: { children: JSX.Element }) => {
@@ -60,16 +60,16 @@ function App() {
             </PublicRoute>
           } />
           <Route path="/chat" element={
-            <ProtectedRoute>
+            // <ProtectedRoute>
               <ChatLayout />
-            </ProtectedRoute>
+            // </ProtectedRoute>
           } />
 
           {/* Default Redirect: Go to Login (which redirects to Chat if auth, helps flow) */}
-          <Route path="/" element={<Navigate to="/login" replace />} />
+          <Route path="/" element={<Navigate to="/chat" replace />} />
 
           {/* Catch all redirect */}
-          <Route path="*" element={<Navigate to="/login" replace />} />
+          <Route path="*" element={<Navigate to="/chat" replace />} />
         </Routes>
       </Router>
     </AuthProvider>
