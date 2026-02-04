@@ -58,7 +58,7 @@ jobs:
     - name: Run Pip-Audit SCA
       working-directory: ./backend
       # Scan installed environment
-      run: pip-audit --ignore-vuln CVE-2024-23342 CVE-2026-0994
+      run: pip-audit --ignore-vuln CVE-2024-23342 --ignore-vuln CVE-2026-0994
 
     # 7. Unit Tests
     - name: Run Tests
