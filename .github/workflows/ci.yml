@@ -75,15 +75,9 @@ jobs:
 
     # 9. Container Scan (Trivy)
     - name: Run Trivy Vulnerability Scanner
-      uses: aquasecurity/trivy-action@0.28.0
-      with:
-        image-ref: 'gta-backend:${{ github.sha }}'
-        format: 'table'
-        exit-code: '1'
-        ignore-unfixed: true
-        vuln-type: 'os,library'
-        severity: 'CRITICAL,HIGH'
-        trivyignores: '.trivyignore'
+      run: |
+        curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
+        trivy image --exit-code 1 --ignore-unfixed --vuln-type os,library --severity CRITICAL,HIGH --format table gta-backend:${{ github.sha }}
 
     # 10. Container Smoke Test
     - name: Smoke Test (Health Check)
