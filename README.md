@@ -8,6 +8,8 @@
 ![Docker](https://img.shields.io/badge/docker-ready-blue)
 ![CI/CD](https://img.shields.io/badge/CI%2FCD-GitHub_Actions-2088FF)
 
+![Walkthrough](https://github.com/BarryByte/gpt-teaching-assistant/blob/main/assets/walkthrough.gif?raw=true)
+
 ## 📖 System Overview
 
 **GPT Teaching Assistant** is a production-grade educational platform designed to simulate a real human tutor. It moves beyond simple Q&A by using a **Socratic method**, guiding students through problems with hints and conceptual breakdowns rather than direct answers.
@@ -117,12 +119,6 @@ The live application is deployed as follows:
 | Database | MongoDB Atlas | Cloud-managed |
 
 Pushes to `main` auto-deploy both frontend (Vercel) and backend (GitHub Actions → EC2).
-
-## 📸 Screenshots
-
-| Login Page | Chat Interface |
-|:---:|:---:|
-| ![Login UI](https://placehold.co/600x400/e2e8f0/475569?text=Login+Securely) | ![Chat UI](https://placehold.co/600x400/e2e8f0/475569?text=Interactive+Tutor) |
 
 
 ## 🤝 Contributing
