@@ -39,7 +39,9 @@ async def signup(request: Request, user: UserCreate):
 
 @router.post("/token", response_model=Token)
 @limiter.limit("10/minute")
-async def login_for_access_token(request: Request, form_data: OAuth2PasswordRequestForm = Depends()):
+async def login_for_access_token(
+    request: Request, form_data: OAuth2PasswordRequestForm = Depends()
+):
     users_collection = get_users_collection()
     user_doc = users_collection.find_one({"username": form_data.username})
     if not user_doc or not verify_password(

@@ -62,7 +62,11 @@ def fetch_problem_summary(request: Request, problem_identifier: str):
 
 @router.post("/chat")
 @limiter.limit("20/minute")
-async def chat(request: Request, chat_request: ChatRequest, current_user: User = Depends(get_current_user)):
+async def chat(
+    request: Request,
+    chat_request: ChatRequest,
+    current_user: User = Depends(get_current_user),
+):
     try:
         # Initialize Gemini and validate key
         api_key = require_gemini_key()
