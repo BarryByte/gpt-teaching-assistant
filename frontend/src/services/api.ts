@@ -52,7 +52,7 @@ export interface ChatRequest {
   question: string;
   problem_slug: string;
   conversation_id: string;
-  // user_id removed, handled by backend token
+  code?: string;
 }
 
 export interface ChatResponse {
@@ -126,7 +126,7 @@ export async function streamChatWithAI(
   requestData: ChatRequest,
   onChunk: (chunk: string) => void,
   onError: (error: any) => void,
-  delayMs: number = 8 // smooth typewriter effect
+  delayMs: number = 4 // smooth typewriter effect (faster)
 ): Promise<void> {
   try {
     const token = localStorage.getItem("token");

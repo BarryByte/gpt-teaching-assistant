@@ -314,14 +314,24 @@ function ChatLayout() {
                 read: true,
             };
 
+            const autoStartMessage: Message = {
+                id: generateUniqueId(),
+                content: "I want to solve this problem. Can you guide me?",
+                sender: "user",
+                timestamp: new Date().toISOString(),
+                read: true,
+            };
+
+            const initialMessages = [problemMessage, autoStartMessage];
+
             setConversations((prev) => {
                 return prev.map(conv => {
                     if (conv.id === targetConvoId) {
                         return {
                             ...conv,
                             title: problem.title,
-                            messages: [problemMessage],
-                            lastMessage: problemMessage.content,
+                            messages: initialMessages,
+                            lastMessage: autoStartMessage.content,
                             timestamp: new Date().toISOString(),
                             problemSlug: slug,
                         };
@@ -332,9 +342,72 @@ function ChatLayout() {
 
             // If we are looking at this conversation, update messages view
             if (activeConversationId === targetConvoId || !activeConversationId) {
-                setMessages([problemMessage]);
+                setMessages(initialMessages);
                 setProblemSlug(slug);
                 if (!activeConversationId) setActiveConversationId(targetConvoId);
+
+                // --- Auto-start stream ---
+                setIsTyping(true);
+                try {
+                    const chatRequest: ChatRequest = {
+                        question: autoStartMessage.content,
+                        problem_slug: slug,
+                        conversation_id: currentConvo.conversationId,
+                    };
+
+                    const aiResponseId = generateUniqueId();
+                    const initialAiResponse: Message = {
+                        id: aiResponseId,
+                        content: "",
+                        sender: "ai",
+                        timestamp: new Date().toISOString(),
+                        read: false,
+                    };
+                    setMessages((prev) => [...prev, initialAiResponse]);
+
+                    let fullContent = "";
+                    const { streamChatWithAI } = await import("../services/api");
+
+                    await streamChatWithAI(
+                        chatRequest,
+                        (chunk) => {
+                            fullContent += chunk;
+                            setMessages((prev) =>
+                                prev.map(msg =>
+                                    msg.id === aiResponseId
+                                        ? { ...msg, content: fullContent }
+                                        : msg
+                                )
+                            );
+                        },
+                        (error) => {
+                            console.error("Stream error auto-start:", error);
+                        }
+                    );
+
+                    // Post-processing for hints/code
+                    if (fullContent.includes("Code Example")) {
+                        const codeStart = fullContent.indexOf("```python");
+                        if (codeStart !== -1) {
+                            const codeEnd = fullContent.indexOf("```", codeStart + 3);
+                            if (codeEnd !== -1) {
+                                setCode(fullContent.substring(codeStart + 9, codeEnd));
+                            }
+                        }
+                    } else if (fullContent.toLowerCase().includes("hint")) {
+                        setHints((prevHints) => {
+                            if (!prevHints.includes(fullContent)) {
+                                return [...prevHints, fullContent];
+                            }
+                            return prevHints;
+                        });
+                    }
+                } catch (error) {
+                    console.error("Failed to auto-start message:", error);
+                } finally {
+                    setIsTyping(false);
+                }
+                // --------------------------
             }
 
         } catch (error: any) {
@@ -375,6 +448,7 @@ function ChatLayout() {
                 question: content,
                 problem_slug: problemSlug,
                 conversation_id: conversationUUID,
+                code: code,
             };
 
             // Prepare placeholder for AI response

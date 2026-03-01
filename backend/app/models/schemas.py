@@ -26,3 +26,4 @@ class ChatRequest(BaseModel):
     question: str
     problem_slug: str
     conversation_id: str
+    code: Optional[str] = None

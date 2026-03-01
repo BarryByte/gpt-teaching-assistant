@@ -137,10 +137,13 @@ function MainPage({
           </div>
         ) : (
           <div className="max-w-4xl mx-auto w-full">
-            {messages.map((message) => (
-              <ChatMessage key={message.id} message={message} />
-            ))}
-            {isTyping && (
+            {messages.map((message, index) => {
+              if (isTyping && message.sender === "ai" && message.content === "" && index === messages.length - 1) {
+                return null;
+              }
+              return <ChatMessage key={message.id} message={message} />;
+            })}
+            {isTyping && (messages.length === 0 || messages[messages.length - 1].sender === "user" || (messages[messages.length - 1].sender === "ai" && messages[messages.length - 1].content === "")) && (
               <div className="flex items-start mb-6">
                 <div className="shrink-0 w-9 h-9 rounded-xl bg-white dark:bg-surface-dark border border-gray-200 dark:border-gray-700 flex items-center justify-center mr-3 shadow-sm">
                   <img src={robot} alt="..." className="w-full h-full object-cover opacity-50 grayscale" />

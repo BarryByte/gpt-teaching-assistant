@@ -81,11 +81,30 @@ const LandingPage = ({ onStart }: LandingPageProps) => {
                                 <div className="w-3 h-3 rounded-full bg-yellow-500/20" />
                                 <div className="w-3 h-3 rounded-full bg-green-500/20" />
                             </div>
-                            <div className="p-8 aspect-video flex items-center justify-center text-text-muted-light dark:text-text-muted-dark italic">
-                                {/* Placeholder for the actual app preview */}
-                                <div className="flex flex-col items-center space-y-4">
-                                    <MessageSquare className="w-16 h-16 opacity-20" />
-                                    <p>App Preview Interace</p>
+                            <div className="p-8 aspect-video flex flex-col justify-end text-text-muted-light dark:text-text-muted-dark bg-gray-50 dark:bg-gray-900/40 relative">
+                                {/* Mock Chat Interface */}
+                                <div className="absolute top-8 left-8 right-8 flex flex-col space-y-4">
+                                    <div className="self-end bg-primary rounded-2xl rounded-tr-none p-4 max-w-[80%] shadow-lg shadow-primary/20 text-white text-sm text-left">
+                                        <p>I am trying to solve Two Sum. Should I use a nested loop?</p>
+                                    </div>
+                                    <div className="self-start flex space-x-3 max-w-[80%] text-left">
+                                        <div className="shrink-0 w-8 h-8 rounded-xl bg-white dark:bg-gray-800 flex items-center justify-center shadow-md">
+                                            <Cpu className="w-5 h-5 text-primary" />
+                                        </div>
+                                        <div className="bg-white dark:bg-surface-dark border border-gray-100 dark:border-gray-800 rounded-2xl rounded-tl-none p-4 shadow-xl text-text-primary-light dark:text-text-primary-dark text-sm leading-relaxed">
+                                            <p>A nested loop works, but it's <code className="text-secondary bg-secondary/10 px-1 py-0.5 rounded">O(n²)</code>. Could we store the numbers we've seen so far in a data structure with faster lookups?</p>
+                                        </div>
+                                    </div>
+
+                                    <div className="self-end bg-primary rounded-2xl rounded-tr-none p-4 max-w-[80%] shadow-lg shadow-primary/20 text-white text-sm mt-4 text-left">
+                                        <p>Ah, like a Hash Map where the key is the number?</p>
+                                    </div>
+                                </div>
+                                <div className="mt-auto w-full flex items-center bg-white dark:bg-surface-dark border border-gray-100 dark:border-gray-800 rounded-2xl p-2 shadow-sm">
+                                    <div className="flex-1 px-4 text-xs opacity-50 text-left">Type your approach here...</div>
+                                    <div className="w-8 h-8 rounded-xl bg-primary text-white flex items-center justify-center shadow-md">
+                                        <ArrowRight className="w-4 h-4 text-white" />
+                                    </div>
                                 </div>
                             </div>
                         </div>
