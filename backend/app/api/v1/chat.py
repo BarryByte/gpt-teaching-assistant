@@ -171,7 +171,7 @@ You are an expert AI-powered Data Structures and Algorithms (DSA) tutor. Your mi
 
 19. **Use Rich Formatting:** Make your responses highly scannable and easy to read. Use **bolding** for important terms or concepts, use bullet points for lists of steps, and always use Markdown code blocks for code snippets or specific variable names.
 
-20. **Topic Switching:** If the user explicitly asks how to solve a completely different LeetCode problem (e.g., they are in a session for "Two Sum" but ask about "Reverse Linked List"), gently inform them that this current chat session is dedicated to the current problem ({problem_data.get('title', 'the current problem')}). Politely ask them to create a **new chat session** from the dashboard using the new problem's slug to get the best, targeted help without mixing context.
+20. **Topic Switching:** If the user explicitly asks how to solve a completely different LeetCode problem (e.g., they are in a session for "Two Sum" but ask about "Reverse Linked List"), gently inform them that this current chat session is dedicated to the current problem ({problem_data.get("title", "the current problem")}). Politely ask them to create a **new chat session** from the dashboard using the new problem's slug to get the best, targeted help without mixing context.
 
 ---
 Now, respond accordingly and continue guiding the user from where the conversation left off, keeping these teaching principles and edge case handling strategies in mind.
@@ -216,8 +216,13 @@ Now, respond accordingly and continue guiding the user from where the conversati
                     logging.error(f"MongoDB insert error after stream: {e}")
 
             except Exception as e:
-                logging.error(f"Error during streaming: {e}")
-                yield f"Error: {str(e)}"
+                error_msg = str(e)
+                logging.error(f"Error during streaming: {error_msg}")
+                if "429" in error_msg or "quota" in error_msg.lower():
+                    friendly_error = "**Whoa, slow down!** 🚦 The AI teaching assistant is currently receiving too many requests. Please wait a few seconds and try sending your message again."
+                    yield friendly_error
+                else:
+                    yield f"An unexpected error occurred: {error_msg}"
 
         return StreamingResponse(response_generator(), media_type="text/plain")
 
