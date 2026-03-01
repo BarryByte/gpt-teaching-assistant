@@ -35,8 +35,10 @@ User → Vercel (React SPA) → AWS EC2 (FastAPI + Docker) → MongoDB Atlas
 - **💬 Real-Time Streaming** — Typewriter-style AI responses via Server-Sent Events for a natural flow.
 - **📚 Persistent Chat History** — All sessions are saved privately; users can rename, delete, and revisit conversations.
 - **🧩 Deep LeetCode Integration** — Paste a problem URL to instantly load context, constraints, and targeted hints.
-- **🎯 Guidance-First Approach** — The AI uses the Socratic method, fostering true problem-solving skills instead of giving answers.
-- **🛡️ Production-Grade** — HTTPS everywhere, CORS-hardened, container auto-restart, health-check monitoring.
+- **⚡ Auto-Start Sessions** — Fetching a problem automatically jump-starts the AI teaching conversation context.
+- **💻 Code Editor Awareness** — The AI reads the built-in code editor in real-time to provide highly specific logic and syntax feedback. 
+- **🎯 Socratic Guidance-First** — The AI acts as a tutor, refusing to spoon-feed answers and successfully navigating edge cases (e.g. infinite loops, overconfidence).
+- **🛡️ Production-Grade** — HTTPS everywhere, CORS-hardened, container auto-restart, health-check monitoring, and rate limiting.
 
 ## 🛠️ DevOps & Infrastructure
 
@@ -102,14 +104,6 @@ npm install
 npm run dev
 ```
 
-### Method 3: Kubernetes
-
-K8s manifests are provided in `backend/k8s/` for cluster deployment (K3s, Minikube, EKS).
-
-```bash
-kubectl apply -f backend/k8s/
-```
-
 ---
 
 ## 🌐 Production Deployment
@@ -130,15 +124,6 @@ Pushes to `main` auto-deploy both frontend (Vercel) and backend (GitHub Actions 
 |:---:|:---:|
 | ![Login UI](https://placehold.co/600x400/e2e8f0/475569?text=Login+Securely) | ![Chat UI](https://placehold.co/600x400/e2e8f0/475569?text=Interactive+Tutor) |
 
-## 🗺️ Roadmap
-
-- [ ] Rate limiting & abuse protection
-- [ ] User progress analytics dashboard
-- [ ] Support for multiple DSA topics (Trees, Graphs, DP)
-- [ ] Export chat sessions as PDF/Markdown
-- [ ] Dark/Light theme toggle
-- [ ] Mobile-responsive redesign
-- [ ] Multi-language support
 
 ## 🤝 Contributing
 

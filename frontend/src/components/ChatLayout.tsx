@@ -155,6 +155,7 @@ function ChatLayout() {
         setActiveConversationId(newConversation.id);
         setMessages([]);
         setProblemSlug(null);
+        setCode("");
         setInputMessage("");
         return newConversation;
     };
@@ -175,10 +176,12 @@ function ChatLayout() {
                 setActiveConversationId(null);
                 setMessages([]);
                 setProblemSlug(null);
+                setCode("");
             } else {
                 setActiveConversationId(null);
                 setMessages([]);
                 setProblemSlug(null);
+                setCode("");
             }
         }
 
@@ -247,6 +250,7 @@ function ChatLayout() {
         if (conversation) {
             setMessages(conversation.messages); // Set initial (likely empty if fresh load)
             setProblemSlug(conversation.problemSlug || null);
+            setCode("");
 
             // Fetch full history from backend
             try {

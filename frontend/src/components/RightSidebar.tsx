@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Lightbulb, Code as CodeIcon, HelpCircle } from "lucide-react";
+import { Lightbulb, Code as CodeIcon, HelpCircle, Trash2 } from "lucide-react";
 import TabContent from "./TabContent";
 import CodeEditor from "./CodeEditor";
 import { cn } from "../utils"; // Assuming cn is in utils or defined here
@@ -40,12 +40,25 @@ const RightSidebar = ({ code, setCode, onSendMessage }: RightSidebarProps) => {
       {/* Tab Content */}
       <div className="flex-1 overflow-hidden">
         {activeTab === "editor" ? (
-          <div className="h-full p-4">
-            <CodeEditor
-              code={code}
-              onChange={(val) => setCode(val || "")}
-              language="python"
-            />
+          <div className="h-full p-4 flex flex-col">
+            <div className="flex justify-between items-center mb-2 px-2">
+              <span className="text-xs font-semibold text-text-muted-light dark:text-text-muted-dark uppercase tracking-wider">Python Editor</span>
+              <button
+                onClick={() => setCode("")}
+                className="flex items-center space-x-1 text-xs text-text-muted-light dark:text-text-muted-dark hover:text-red-500 dark:hover:text-red-400 transition-colors"
+                title="Clear Editor"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Clear</span>
+              </button>
+            </div>
+            <div className="flex-1 overflow-hidden rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm relative">
+              <CodeEditor
+                code={code}
+                onChange={(val) => setCode(val || "")}
+                language="python"
+              />
+            </div>
           </div>
         ) : (
           <div className="h-full overflow-y-auto p-6 scrollbar-thin scrollbar-thumb-gray-200 dark:scrollbar-thumb-gray-800">
