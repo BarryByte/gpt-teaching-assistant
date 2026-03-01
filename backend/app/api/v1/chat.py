@@ -4,9 +4,11 @@ from datetime import datetime
 from typing import Dict, List
 
 import google.generativeai as genai
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from google.api_core import exceptions
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 
 from app.core.config import require_gemini_key
 from app.core.security import get_current_user
@@ -14,10 +16,8 @@ from app.db.database import get_chat_collection
 from app.models.schemas import ChatRequest, User
 from app.services.scraper_service import get_problem_data
 
-# Initialize Gemini
-
-
 router = APIRouter()
+limiter = Limiter(key_func=get_remote_address)
 
 
 # --- Helpers ---
@@ -36,12 +36,14 @@ def get_user_chat_history(username: str, conversation_id: str) -> List[Dict[str,
 
 
 @router.get("/fetch-problem/{problem_identifier:path}")
-def fetch_problem(problem_identifier: str):
+@limiter.limit("30/minute")
+def fetch_problem(request: Request, problem_identifier: str):
     return get_problem_data(problem_identifier)
 
 
 @router.get("/fetch-problem-summary/{problem_identifier:path}")
-def fetch_problem_summary(problem_identifier: str):
+@limiter.limit("30/minute")
+def fetch_problem_summary(request: Request, problem_identifier: str):
     try:
         problem_data = get_problem_data(problem_identifier)
         # Extract description and examples (if present)
@@ -59,23 +61,24 @@ def fetch_problem_summary(problem_identifier: str):
 
 
 @router.post("/chat")
-async def chat(request: ChatRequest, current_user: User = Depends(get_current_user)):
+@limiter.limit("20/minute")
+async def chat(request: Request, chat_request: ChatRequest, current_user: User = Depends(get_current_user)):
     try:
         # Initialize Gemini and validate key
         api_key = require_gemini_key()
         genai.configure(api_key=api_key)
 
         logging.info(
-            f"Received chat request from {current_user.username} for problem: {request.problem_slug}"
+            f"Received chat request from {current_user.username} for problem: {chat_request.problem_slug}"
         )
 
         # 1. Fetch problem data
-        problem_data = get_problem_data(request.problem_slug)
+        problem_data = get_problem_data(chat_request.problem_slug)
 
         # 2. Build Chat History Context
         try:
             history = get_user_chat_history(
-                current_user.username, request.conversation_id
+                current_user.username, chat_request.conversation_id
             )
             history_context = json.dumps(history[-5:], indent=2)
         except Exception as e:
@@ -96,7 +99,7 @@ You are an expert AI-powered Data Structures and Algorithms (DSA) tutor. Your mi
 
 ---
 ### **User's Current Question & Context**
-**User asked:** {request.question}
+**User asked:** {chat_request.question}
 
 **Conversation So Far:**
 {history_context}
@@ -168,9 +171,9 @@ Now, respond accordingly and continue guiding the user from where the conversati
                     chat_collection.insert_one(
                         {
                             "user_id": current_user.username,
-                            "question": request.question,
-                            "conversation_id": request.conversation_id,
-                            "problem_slug": request.problem_slug,
+                            "question": chat_request.question,
+                            "conversation_id": chat_request.conversation_id,
+                            "problem_slug": chat_request.problem_slug,
                             "response": full_response,
                             "timestamp": datetime.now().isoformat(),
                         }

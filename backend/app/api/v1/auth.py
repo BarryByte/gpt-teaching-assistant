@@ -1,7 +1,9 @@
 from datetime import datetime, timedelta
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordRequestForm
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 
 from app.core.config import settings
 from app.core.security import (
@@ -14,10 +16,12 @@ from app.db.database import get_users_collection
 from app.models.schemas import Token, UserCreate
 
 router = APIRouter()
+limiter = Limiter(key_func=get_remote_address)
 
 
 @router.post("/signup", status_code=status.HTTP_201_CREATED)
-async def signup(user: UserCreate):
+@limiter.limit("5/minute")
+async def signup(request: Request, user: UserCreate):
     users_collection = get_users_collection()
     if users_collection.find_one({"username": user.username}):
         raise HTTPException(status_code=400, detail="Username already registered")
@@ -34,7 +38,8 @@ async def signup(user: UserCreate):
 
 
 @router.post("/token", response_model=Token)
-async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends()):
+@limiter.limit("10/minute")
+async def login_for_access_token(request: Request, form_data: OAuth2PasswordRequestForm = Depends()):
     users_collection = get_users_collection()
     user_doc = users_collection.find_one({"username": form_data.username})
     if not user_doc or not verify_password(
@@ -55,9 +60,4 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
 
 @router.get("/users/me")
 async def read_users_me(current_user=Depends(get_current_user)):
-    # Note: Circular import issue potential if we import get_current_user from security inside security?
-    # No, security imports from database and config.
-    # Auth imports from security. That works.
-    # BUT I need to pass get_current_user.
-    # I will import it at top.
     return {"username": current_user.username}

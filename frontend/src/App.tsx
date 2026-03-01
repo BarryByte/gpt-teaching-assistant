@@ -1,5 +1,6 @@
-import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from "react-router-dom";
+import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "./context/AuthContext";
+import { ThemeProvider } from "./context/ThemeContext";
 import LoginPage from "./components/auth/LoginPage";
 import SignupPage from "./components/auth/SignupPage";
 import ChatLayout from "./components/ChatLayout";
@@ -46,33 +47,35 @@ const PublicRoute = ({ children }: { children: JSX.Element }) => {
 
 function App() {
   return (
-    <AuthProvider>
-      <Router>
-        <Routes>
-          <Route path="/login" element={
-            <PublicRoute>
-              <LoginPage />
-            </PublicRoute>
-          } />
-          <Route path="/signup" element={
-            <PublicRoute>
-              <SignupPage />
-            </PublicRoute>
-          } />
-          <Route path="/chat" element={
-            // <ProtectedRoute>
+    <ThemeProvider>
+      <AuthProvider>
+        <Router>
+          <Routes>
+            <Route path="/login" element={
+              <PublicRoute>
+                <LoginPage />
+              </PublicRoute>
+            } />
+            <Route path="/signup" element={
+              <PublicRoute>
+                <SignupPage />
+              </PublicRoute>
+            } />
+            <Route path="/chat" element={
+              // <ProtectedRoute>
               <ChatLayout />
-            // </ProtectedRoute>
-          } />
+              // </ProtectedRoute>
+            } />
 
-          {/* Default Redirect: Go to Login (which redirects to Chat if auth, helps flow) */}
-          <Route path="/" element={<Navigate to="/chat" replace />} />
+            {/* Default Redirect: Go to Login (which redirects to Chat if auth, helps flow) */}
+            <Route path="/" element={<Navigate to="/chat" replace />} />
 
-          {/* Catch all redirect */}
-          <Route path="*" element={<Navigate to="/chat" replace />} />
-        </Routes>
-      </Router>
-    </AuthProvider>
+            {/* Catch all redirect */}
+            <Route path="*" element={<Navigate to="/chat" replace />} />
+          </Routes>
+        </Router>
+      </AuthProvider>
+    </ThemeProvider>
   );
 }
 

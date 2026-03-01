@@ -3,6 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { authApi } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import { Lock, User } from 'lucide-react';
+import ThemeToggle from '../ThemeToggle';
 
 const LoginPage: React.FC = () => {
     const [username, setUsername] = useState('');
@@ -30,6 +31,7 @@ const LoginPage: React.FC = () => {
 
     return (
         <div className="min-h-screen bg-gray-50 dark:bg-[#0f1117] flex flex-col justify-center py-12 sm:px-6 lg:px-8">
+            <ThemeToggle />
             <div className="sm:mx-auto sm:w-full sm:max-w-md">
                 <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900 dark:text-white">
                     Sign in to your account

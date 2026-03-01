@@ -9,6 +9,7 @@ pydantic
 passlib[bcrypt]
 python-jose[cryptography]
 python-multipart
+slowapi
 pytest
 pytest-asyncio
 pytest-mock

@@ -75,7 +75,7 @@ jobs:
 
     # 9. Container Scan (Trivy)
     - name: Run Trivy Vulnerability Scanner
-      uses: aquasecurity/trivy-action@master
+      uses: aquasecurity/trivy-action@0.28.0
       with:
         image-ref: 'gta-backend:${{ github.sha }}'
         format: 'table'

@@ -7,10 +7,12 @@ import ChatHistorySidebar from "./ChatHistorySidebar";
 import RightSidebar from "./RightSidebar";
 import { v4 as uuidv4 } from "uuid";
 import { useAuth } from "../context/AuthContext";
+import { useTheme } from "../context/ThemeContext";
 import { useNavigate } from "react-router-dom";
 
 function ChatLayout() {
     const { user, logout } = useAuth();
+    const { isDarkMode, toggleTheme } = useTheme();
     const navigate = useNavigate();
 
     // State for conversations and active conversation
@@ -37,11 +39,7 @@ function ChatLayout() {
     const [isRightSidebarCollapsed, setIsRightSidebarCollapsed] = useState(false);
     const [isResizing, setIsResizing] = useState(false);
 
-    // Theme state
-    const [isDarkMode, setIsDarkMode] = useState(() => {
-        const savedTheme = localStorage.getItem("theme");
-        return savedTheme ? savedTheme === "dark" : true;
-    });
+    // State for settings dropdown visibility
     const [showSettings, setShowSettings] = useState(false);
 
     // Load saved conversations from backend on mount
@@ -106,15 +104,6 @@ function ChatLayout() {
     //     }
     // }, [conversations, user?.username]);
 
-    // Apply theme class to HTML element
-    useEffect(() => {
-        if (isDarkMode) {
-            document.documentElement.classList.add("dark");
-        } else {
-            document.documentElement.classList.remove("dark");
-        }
-        localStorage.setItem("theme", isDarkMode ? "dark" : "light");
-    }, [isDarkMode]);
 
     // Handle sidebar resize with mouse events
     useEffect(() => {
@@ -513,7 +502,7 @@ function ChatLayout() {
                                     <div className="flex items-center justify-between">
                                         <span className="text-sm text-text-secondary-light dark:text-text-secondary-dark">Dark Mode</span>
                                         <button
-                                            onClick={() => setIsDarkMode(!isDarkMode)}
+                                            onClick={toggleTheme}
                                             className={`relative w-12 h-6 rounded-full transition-colors ${isDarkMode ? 'bg-primary' : 'bg-gray-300 dark:bg-gray-600'}`}
                                         >
                                             <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${isDarkMode ? 'translate-x-6' : 'translate-x-0'}`} />

@@ -8,3 +8,4 @@ myenv/
 
 .env.production
 .env.development
+*.pem
