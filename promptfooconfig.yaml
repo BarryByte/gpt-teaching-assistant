@@ -1,0 +1,412 @@
+# yaml-language-server: $schema=https://promptfoo.dev/config-schema.json
+
+description: "GPT Teaching Assistant - Socratic Tutor Evaluation"
+
+prompts:
+  - file://prompts/tutor_prompt.txt
+
+providers:
+  - id: google:gemini-2.5-flash-lite
+    config:
+      temperature: 0
+
+# Default variable values (applied to all tests unless overridden)
+defaultTest:
+  vars:
+    problem_title: "Two Sum"
+    platform: "LeetCode"
+    difficulty: "Easy"
+    tags: "Array, Hash Table"
+    problem_description: >
+      Given an array of integers nums and an integer target, return indices of
+      the two numbers such that they add up to target. You may assume that each
+      input would have exactly one solution, and you may not use the same element
+      twice. You can return the answer in any order.
+      Example 1: Input: nums = [2,7,11,15], target = 9. Output: [0,1].
+      Example 2: Input: nums = [3,2,4], target = 6. Output: [1,2].
+      Constraints: 2 <= nums.length <= 10^4, -10^9 <= nums[i] <= 10^9.
+    history: "[]"
+    code: "No code provided yet."
+
+tests:
+  # ========================================================================
+  # 1. SOCRATIC METHOD — No Spoon-Feeding (Principles 4, 9)
+  # ========================================================================
+  - description: "Should NOT give full solution when asked directly"
+    vars:
+      question: "Just give me the complete solution code for Two Sum please"
+    assert:
+      - type: llm-rubric
+        value: >
+          The response should NOT contain a complete, copy-pasteable solution
+          function. It should instead guide the student with hints, questions,
+          or partial steps. The tutor should encourage the student to try
+          solving it themselves.
+      - type: not-icontains
+        value: "return [i, j]"
+
+  - description: "Should refuse to give answer even with polite insistence"
+    vars:
+      question: "I know I should try myself but I really need the full answer right now, just this once"
+    assert:
+      - type: llm-rubric
+        value: >
+          The response should still prioritize teaching over giving the answer.
+          It may empathize but should not provide a full solution. It should
+          redirect the user toward attempting the problem.
+
+  # ========================================================================
+  # 2. PROGRESSIVE HINTS (Principle 2)
+  # ========================================================================
+  - description: "First hint should be vague/directional (Level 1)"
+    vars:
+      question: "I'm stuck, I don't know how to start"
+    assert:
+      - type: llm-rubric
+        value: >
+          The response should provide a Level 1 hint — a general direction or
+          related concept (e.g., mentioning the idea of looking up complements,
+          or thinking about what information you need to track). It should NOT
+          jump straight to suggesting 'use a hash map' or giving implementation details.
+
+  - description: "Second hint should be more specific (Level 2) given prior stuck context"
+    vars:
+      question: "I'm still stuck, I don't understand what you mean"
+      history: '[{"question": "I dont know how to start", "response": "Think about what information you need as you look at each number. What would make finding the answer faster?"}]'
+    assert:
+      - type: llm-rubric
+        value: >
+          Given the user was already stuck once before, the response should now
+          provide a Level 2 hint — suggesting a specific data structure or
+          approach (like a hash map or dictionary). It should be more concrete
+          than the previous hint.
+
+  # ========================================================================
+  # 3. CODE REVIEW — Constructive Feedback (Principle 3)
+  # ========================================================================
+  - description: "Should acknowledge effort before critiquing"
+    vars:
+      question: "Is my approach correct?"
+      code: |
+        def twoSum(nums, target):
+            for i in range(len(nums)):
+                for j in range(len(nums)):
+                    if nums[i] + nums[j] == target:
+                        return [i, j]
+    assert:
+      - type: llm-rubric
+        value: >
+          The response should first acknowledge the user's effort or what's good
+          about the approach (they have the right general idea of checking pairs).
+          Then it should point out the bug (j should start from i+1, not 0, to
+          avoid using the same element twice) and the O(n^2) efficiency concern.
+
+  # ========================================================================
+  # 4. "I DON'T KNOW" HANDLING (Principle 6)
+  # ========================================================================
+  - description: "Should encourage and simplify when user is frustrated"
+    vars:
+      question: "I have absolutely no idea what to do. I don't understand this problem at all."
+    assert:
+      - type: llm-rubric
+        value: >
+          The response should: (1) acknowledge the difficulty and offer
+          encouragement, (2) break the problem into a very small, concrete
+          first step, and (3) be warm and patient in tone. It should NOT
+          be dismissive or skip straight to technical details.
+
+  - description: "Should offer to revisit foundational concepts"
+    vars:
+      question: "What even is a hash table? I've never used one"
+      history: '[{"question": "How should I approach this?", "response": "Think about how you could use a hash-based structure to speed up lookups."}]'
+    assert:
+      - type: llm-rubric
+        value: >
+          The response should briefly explain what a hash table is in simple
+          terms, then gently connect it back to how it applies to the Two Sum
+          problem. It should not assume the user already knows.
+
+  # ========================================================================
+  # 5. TOPIC SWITCHING REFUSAL (Principle 20)
+  # ========================================================================
+  - description: "Should redirect when user asks about a different problem"
+    vars:
+      question: "Actually, can you help me solve Reverse Linked List instead?"
+    assert:
+      - type: llm-rubric
+        value: >
+          The response should politely inform the user that this session is
+          dedicated to Two Sum. It should suggest creating a new chat session
+          for Reverse Linked List. It should NOT start solving the new problem.
+      - type: icontains
+        value: "new"
+
+  # ========================================================================
+  # 6. CONFIDENT-BUT-WRONG USER (Principle 14)
+  # ========================================================================
+  - description: "Should guide to edge case discovery, not say 'you're wrong'"
+    vars:
+      question: "I'm done, this is perfect. It works for all cases!"
+      code: |
+        def twoSum(nums, target):
+            hashmap = {}
+            for i, num in enumerate(nums):
+                complement = target - num
+                if complement in hashmap:
+                    return [hashmap[complement], i]
+                hashmap[num] = i
+    assert:
+      - type: llm-rubric
+        value: >
+          The code is actually correct for Two Sum. The response should
+          acknowledge the solution looks solid and congratulate the user.
+          If it probes edge cases, it should do so gently (e.g., "Have you
+          considered negative numbers or duplicate values?") rather than
+          saying the code is wrong.
+      - type: not-icontains
+        value: "you're wrong"
+
+  - description: "Should guide user to discover empty array edge case"
+    vars:
+      question: "My code handles everything perfectly, I'm confident this is right"
+      code: |
+        def twoSum(nums, target):
+            for i in range(len(nums)):
+                for j in range(i+1, len(nums)):
+                    if nums[i] + nums[j] == target:
+                        return [i, j]
+      problem_description: >
+        Given an array of integers nums and an integer target, return indices of
+        the two numbers such that they add up to target. Constraints: 0 <= nums.length <= 10^4.
+    assert:
+      - type: llm-rubric
+        value: >
+          The response should NOT bluntly say the code is wrong. Instead it should
+          guide the user to think about edge cases like: What if nums is empty?
+          What if no pair is found? The code doesn't handle the no-match case.
+          It should nudge discovery rather than reveal the answer directly.
+
+  # ========================================================================
+  # 7. INFINITE LOOP / TLE DETECTION (Principle 15)
+  # ========================================================================
+  - description: "Should warn about O(n^2) on large constraints"
+    vars:
+      question: "Will this pass all test cases?"
+      code: |
+        def twoSum(nums, target):
+            for i in range(len(nums)):
+                for j in range(i+1, len(nums)):
+                    if nums[i] + nums[j] == target:
+                        return [i, j]
+      problem_description: >
+        Given an array of integers nums and an integer target, return indices of
+        the two numbers. Constraints: 2 <= nums.length <= 10^5, -10^9 <= nums[i] <= 10^9.
+    assert:
+      - type: llm-rubric
+        value: >
+          The response should proactively warn that the O(n^2) nested loop
+          approach may cause a Time Limit Exceeded error given the constraint
+          of n up to 10^5. It should suggest considering a more efficient approach.
+
+  # ========================================================================
+  # 8. SYNTAX vs LOGIC ERROR SEPARATION (Principle 16)
+  # ========================================================================
+  - description: "Should separate syntax error from logical error in feedback"
+    vars:
+      question: "Why isn't my code working?"
+      code: |
+        def twoSum(nums, target)
+            hashmap = {}
+            for i in range(len(nums)):
+                complement = target - nums[i]
+                if complement in hashmap
+                    return [hashmap[complement], i]
+                hashmap[nums[i]] = i
+    assert:
+      - type: llm-rubric
+        value: >
+          The response should first point out the syntax errors (missing colons
+          after function definition and if statement) as a separate concern.
+          Then address the logical approach separately. It should explicitly
+          separate these two types of feedback.
+
+  # ========================================================================
+  # 9. CONCISENESS (Principle 18)
+  # ========================================================================
+  - description: "Response should be concise (2-3 short paragraphs)"
+    vars:
+      question: "What data structure should I use for this?"
+    assert:
+      - type: javascript
+        value: "output.split('\\n').filter(l => l.trim().length > 0).length < 25"
+      - type: llm-rubric
+        value: >
+          The response should be short and punchy — no more than 2-3 short
+          paragraphs. It should not be a wall of text. It should answer
+          the question concisely and end with a guiding question.
+
+  # ========================================================================
+  # 10. UNRELATED CODE HANDLING (Principle 10)
+  # ========================================================================
+  - description: "Should ignore unrelated code and redirect"
+    vars:
+      question: "Can you review my code?"
+      code: |
+        from flask import Flask
+        app = Flask(__name__)
+
+        @app.route('/')
+        def hello():
+            return "Hello World!"
+
+        if __name__ == '__main__':
+            app.run()
+    assert:
+      - type: llm-rubric
+        value: >
+          The response should gently point out that the current code (a Flask
+          web app) doesn't seem related to the Two Sum problem. It should
+          redirect the user to think about the actual problem and NOT try
+          to review the Flask code as a Two Sum solution.
+
+  # ========================================================================
+  # 11. EMPTY CODE HANDLING (Principle 11)
+  # ========================================================================
+  - description: "Should not assume code exists when none provided"
+    vars:
+      question: "Am I on the right track?"
+      code: "No code provided yet."
+    assert:
+      - type: llm-rubric
+        value: >
+          The response should acknowledge that no code has been provided yet.
+          It should ask the user to think about how to start or provide the
+          first conceptual step. It should NOT critique nonexistent code
+          or assume the user has written something.
+
+  # ========================================================================
+  # 12. RICH FORMATTING (Principle 19)
+  # ========================================================================
+  - description: "Should use markdown formatting in responses"
+    vars:
+      question: "Can you explain the hash map approach step by step?"
+    assert:
+      - type: llm-rubric
+        value: >
+          The response should use rich markdown formatting: bold text for
+          important terms, bullet points or numbered lists for steps,
+          and code blocks for any code snippets or variable names.
+          The response should be highly scannable and easy to read.
+      - type: contains
+        value: "**"
+
+  # ========================================================================
+  # 13. GUIDING QUESTIONS (Principle 5)
+  # ========================================================================
+  - description: "Should end with a thoughtful guiding question"
+    vars:
+      question: "I think I should use a brute force approach"
+    assert:
+      - type: llm-rubric
+        value: >
+          The response should end with a thoughtful guiding question that
+          prompts the user to think critically. The question should be
+          relevant to their current stage of problem-solving.
+      - type: javascript
+        value: "output.trim().endsWith('?')"
+
+  # ========================================================================
+  # 14. PREMATURE OPTIMIZATION (Principle 17)
+  # ========================================================================
+  - description: "Should encourage brute force first when user jumps to complex optimization"
+    vars:
+      question: "I'm trying to solve this with a self-balancing BST for O(n log n) but I'm stuck on the rotations"
+      code: "No code provided yet."
+    assert:
+      - type: llm-rubric
+        value: >
+          The response should encourage the user to step back and get a
+          simpler, working solution first (like brute force O(n^2)) before
+          attempting a complex optimization. It should not dive into
+          explaining BST rotations.
+
+  # ========================================================================
+  # 15. PSEUDOCODE RECOGNITION (Principle 13)
+  # ========================================================================
+  - description: "Should recognize and evaluate pseudocode positively"
+    vars:
+      question: "Is this logic correct?"
+      code: |
+        for each number in the array:
+            calculate complement = target - number
+            check if complement exists in our seen numbers
+            if yes: return the indices
+            if no: add current number to seen numbers
+    assert:
+      - type: llm-rubric
+        value: >
+          The response should recognize this as pseudocode (not syntax errors).
+          It should evaluate the logic positively since the approach is correct.
+          It should encourage the user and guide them toward translating the
+          pseudocode into actual Python code.
+
+  # ========================================================================
+  # 16. FOCUS PRIORITY — Query vs Code (Principle 12)
+  # ========================================================================
+  - description: "Should answer specific question even when code is present"
+    vars:
+      question: "What is the time complexity of my approach?"
+      code: |
+        def twoSum(nums, target):
+            hashmap = {}
+            for i, num in enumerate(nums):
+                if target - num in hashmap:
+                    return [hashmap[target - num], i]
+                hashmap[num] = i
+    assert:
+      - type: llm-rubric
+        value: >
+          The response should directly answer the time complexity question
+          (O(n) time, O(n) space) rather than prioritizing a code review.
+          The user asked a specific question and it should be answered first.
+      - type: icontains
+        value: "O(n)"
+
+  # ========================================================================
+  # 17. DIFFERENT PROBLEM CONTEXT (Generalization)
+  # ========================================================================
+  - description: "Should work correctly with a harder problem (Binary Search context)"
+    vars:
+      problem_title: "Search in Rotated Sorted Array"
+      difficulty: "Medium"
+      tags: "Array, Binary Search"
+      problem_description: >
+        Given the sorted rotated array nums of unique elements, return the index
+        of target if it is in nums, or -1 if it is not. You must write an
+        algorithm with O(log n) runtime complexity.
+        Constraints: 1 <= nums.length <= 5000.
+      question: "How should I approach this problem?"
+      code: "No code provided yet."
+    assert:
+      - type: llm-rubric
+        value: >
+          The response should guide the user toward thinking about binary search
+          (since O(log n) is required). It should break the problem down into
+          steps and end with a guiding question. It should NOT give the
+          full solution.
+      - type: not-icontains
+        value: "def search"
+
+  # ========================================================================
+  # 18. UNRELATED DSA CONCEPT (Principle 8)
+  # ========================================================================
+  - description: "Should briefly explain unrelated concept then redirect"
+    vars:
+      question: "What is Big O notation? I keep seeing it everywhere"
+    assert:
+      - type: llm-rubric
+        value: >
+          The response should briefly and clearly explain Big O notation in
+          1-2 sentences. Then it should gently guide the user back to the
+          Two Sum problem, perhaps by asking how Big O relates to their
+          current approach.
