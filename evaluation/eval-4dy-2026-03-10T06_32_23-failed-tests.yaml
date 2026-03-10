@@ -1,0 +1,348 @@
+# yaml-language-server: $schema=https://promptfoo.dev/config-schema.json
+description: GPT Teaching Assistant - Socratic Tutor Evaluation
+prompts:
+  - file://prompts/tutor_prompt.json
+providers:
+  - id: openai:chat:google/gemini-2.5-flash-lite
+    config:
+      apiBaseUrl: https://openrouter.ai/api/v1
+      apiKeyEnvar: OPENROUTER_API_KEY
+      temperature: 0
+tests:
+  - description: Should acknowledge effort before critiquing
+    vars:
+      problem_title: Two Sum
+      platform: LeetCode
+      difficulty: Easy
+      tags: Array, Hash Table
+      problem_description: >
+        Given an array of integers nums and an integer target, return indices of
+        the two numbers such that they add up to target. You may assume that
+        each input would have exactly one solution, and you may not use the same
+        element twice. You can return the answer in any order. Example 1: Input:
+        nums = [2,7,11,15], target = 9. Output: [0,1]. Example 2: Input: nums =
+        [3,2,4], target = 6. Output: [1,2]. Constraints: 2 <= nums.length <=
+        10^4, -10^9 <= nums[i] <= 10^9.
+      history: '[]'
+      code: |
+        def twoSum(nums, target):
+            for i in range(len(nums)):
+                for j in range(len(nums)):
+                    if nums[i] + nums[j] == target:
+                        return [i, j]
+      question: Is my approach correct?
+    assert:
+      - type: llm-rubric
+        value: >
+          The response should first acknowledge the user's effort or what's good
+          about the approach (they have the right general idea of checking
+          pairs). Then it should point out the bug (j should start from i+1, not
+          0, to avoid using the same element twice) and the O(n^2) efficiency
+          concern.
+    options:
+      provider:
+        id: openai:chat:google/gemini-2.5-flash-lite
+        config:
+          apiBaseUrl: https://openrouter.ai/api/v1
+          apiKeyEnvar: OPENROUTER_API_KEY
+          temperature: 0
+    metadata: {}
+  - description: Should offer to revisit foundational concepts
+    vars:
+      problem_title: Two Sum
+      platform: LeetCode
+      difficulty: Easy
+      tags: Array, Hash Table
+      problem_description: >
+        Given an array of integers nums and an integer target, return indices of
+        the two numbers such that they add up to target. You may assume that
+        each input would have exactly one solution, and you may not use the same
+        element twice. You can return the answer in any order. Example 1: Input:
+        nums = [2,7,11,15], target = 9. Output: [0,1]. Example 2: Input: nums =
+        [3,2,4], target = 6. Output: [1,2]. Constraints: 2 <= nums.length <=
+        10^4, -10^9 <= nums[i] <= 10^9.
+      history: >-
+        [{"question": "How should I approach this?", "response": "Think about
+        how you could use a hash-based structure to speed up lookups."}]
+      code: No code provided yet.
+      question: What even is a hash table? I've never used one
+    assert:
+      - type: llm-rubric
+        value: >
+          The response should briefly explain what a hash table is in simple
+          terms, then gently connect it back to how it applies to the Two Sum
+          problem. It should not assume the user already knows.
+    options:
+      provider:
+        id: openai:chat:google/gemini-2.5-flash-lite
+        config:
+          apiBaseUrl: https://openrouter.ai/api/v1
+          apiKeyEnvar: OPENROUTER_API_KEY
+          temperature: 0
+    metadata: {}
+  - description: Should warn about O(n^2) on large constraints
+    vars:
+      problem_title: Two Sum
+      platform: LeetCode
+      difficulty: Easy
+      tags: Array, Hash Table
+      problem_description: >
+        Given an array of integers nums and an integer target, return indices of
+        the two numbers. Constraints: 2 <= nums.length <= 10^5, -10^9 <= nums[i]
+        <= 10^9.
+      history: '[]'
+      code: |
+        def twoSum(nums, target):
+            for i in range(len(nums)):
+                for j in range(i+1, len(nums)):
+                    if nums[i] + nums[j] == target:
+                        return [i, j]
+      question: Will this pass all test cases?
+    assert:
+      - type: llm-rubric
+        value: >
+          The response should proactively warn that the O(n^2) nested loop
+          approach may cause a Time Limit Exceeded error given the constraint of
+          n up to 10^5. It should suggest considering a more efficient approach.
+    options:
+      provider:
+        id: openai:chat:google/gemini-2.5-flash-lite
+        config:
+          apiBaseUrl: https://openrouter.ai/api/v1
+          apiKeyEnvar: OPENROUTER_API_KEY
+          temperature: 0
+    metadata: {}
+  - description: Should separate syntax error from logical error in feedback
+    vars:
+      problem_title: Two Sum
+      platform: LeetCode
+      difficulty: Easy
+      tags: Array, Hash Table
+      problem_description: >
+        Given an array of integers nums and an integer target, return indices of
+        the two numbers such that they add up to target. You may assume that
+        each input would have exactly one solution, and you may not use the same
+        element twice. You can return the answer in any order. Example 1: Input:
+        nums = [2,7,11,15], target = 9. Output: [0,1]. Example 2: Input: nums =
+        [3,2,4], target = 6. Output: [1,2]. Constraints: 2 <= nums.length <=
+        10^4, -10^9 <= nums[i] <= 10^9.
+      history: '[]'
+      code: |
+        def twoSum(nums, target)
+            hashmap = {}
+            for i in range(len(nums)):
+                complement = target - nums[i]
+                if complement in hashmap
+                    return [hashmap[complement], i]
+                hashmap[nums[i]] = i
+      question: Why isn't my code working?
+    assert:
+      - type: llm-rubric
+        value: >
+          The response should first point out the syntax errors (missing colons
+          after function definition and if statement) as a separate concern.
+          Then address the logical approach separately. It should explicitly
+          separate these two types of feedback.
+    options:
+      provider:
+        id: openai:chat:google/gemini-2.5-flash-lite
+        config:
+          apiBaseUrl: https://openrouter.ai/api/v1
+          apiKeyEnvar: OPENROUTER_API_KEY
+          temperature: 0
+    metadata: {}
+  - description: Response should be concise (2-3 short paragraphs)
+    vars:
+      problem_title: Two Sum
+      platform: LeetCode
+      difficulty: Easy
+      tags: Array, Hash Table
+      problem_description: >
+        Given an array of integers nums and an integer target, return indices of
+        the two numbers such that they add up to target. You may assume that
+        each input would have exactly one solution, and you may not use the same
+        element twice. You can return the answer in any order. Example 1: Input:
+        nums = [2,7,11,15], target = 9. Output: [0,1]. Example 2: Input: nums =
+        [3,2,4], target = 6. Output: [1,2]. Constraints: 2 <= nums.length <=
+        10^4, -10^9 <= nums[i] <= 10^9.
+      history: '[]'
+      code: No code provided yet.
+      question: What data structure should I use for this?
+    assert:
+      - type: javascript
+        value: output.split('\n').filter(l => l.trim().length > 0).length < 25
+      - type: llm-rubric
+        value: >
+          The response should be short and punchy — no more than 2-3 short
+          paragraphs. It should not be a wall of text. It should answer the
+          question concisely and end with a guiding question.
+    options:
+      provider:
+        id: openai:chat:google/gemini-2.5-flash-lite
+        config:
+          apiBaseUrl: https://openrouter.ai/api/v1
+          apiKeyEnvar: OPENROUTER_API_KEY
+          temperature: 0
+    metadata: {}
+  - description: Should use markdown formatting in responses
+    vars:
+      problem_title: Two Sum
+      platform: LeetCode
+      difficulty: Easy
+      tags: Array, Hash Table
+      problem_description: >
+        Given an array of integers nums and an integer target, return indices of
+        the two numbers such that they add up to target. You may assume that
+        each input would have exactly one solution, and you may not use the same
+        element twice. You can return the answer in any order. Example 1: Input:
+        nums = [2,7,11,15], target = 9. Output: [0,1]. Example 2: Input: nums =
+        [3,2,4], target = 6. Output: [1,2]. Constraints: 2 <= nums.length <=
+        10^4, -10^9 <= nums[i] <= 10^9.
+      history: '[]'
+      code: No code provided yet.
+      question: Can you explain the hash map approach step by step?
+    assert:
+      - type: llm-rubric
+        value: >
+          The response should use rich markdown formatting: bold text for
+          important terms, bullet points or numbered lists for steps, and code
+          blocks for any code snippets or variable names. The response should be
+          highly scannable and easy to read.
+      - type: contains
+        value: '**'
+    options:
+      provider:
+        id: openai:chat:google/gemini-2.5-flash-lite
+        config:
+          apiBaseUrl: https://openrouter.ai/api/v1
+          apiKeyEnvar: OPENROUTER_API_KEY
+          temperature: 0
+    metadata: {}
+  - description: Should encourage brute force first when user jumps to complex optimization
+    vars:
+      problem_title: Two Sum
+      platform: LeetCode
+      difficulty: Easy
+      tags: Array, Hash Table
+      problem_description: >
+        Given an array of integers nums and an integer target, return indices of
+        the two numbers such that they add up to target. You may assume that
+        each input would have exactly one solution, and you may not use the same
+        element twice. You can return the answer in any order. Example 1: Input:
+        nums = [2,7,11,15], target = 9. Output: [0,1]. Example 2: Input: nums =
+        [3,2,4], target = 6. Output: [1,2]. Constraints: 2 <= nums.length <=
+        10^4, -10^9 <= nums[i] <= 10^9.
+      history: '[]'
+      code: No code provided yet.
+      question: >-
+        I'm trying to solve this with a self-balancing BST for O(n log n) but
+        I'm stuck on the rotations
+    assert:
+      - type: llm-rubric
+        value: >
+          The response should encourage the user to step back and get a simpler,
+          working solution first (like brute force O(n^2)) before attempting a
+          complex optimization. It should not dive into explaining BST
+          rotations.
+    options:
+      provider:
+        id: openai:chat:google/gemini-2.5-flash-lite
+        config:
+          apiBaseUrl: https://openrouter.ai/api/v1
+          apiKeyEnvar: OPENROUTER_API_KEY
+          temperature: 0
+    metadata: {}
+  - description: Should answer specific question even when code is present
+    vars:
+      problem_title: Two Sum
+      platform: LeetCode
+      difficulty: Easy
+      tags: Array, Hash Table
+      problem_description: >
+        Given an array of integers nums and an integer target, return indices of
+        the two numbers such that they add up to target. You may assume that
+        each input would have exactly one solution, and you may not use the same
+        element twice. You can return the answer in any order. Example 1: Input:
+        nums = [2,7,11,15], target = 9. Output: [0,1]. Example 2: Input: nums =
+        [3,2,4], target = 6. Output: [1,2]. Constraints: 2 <= nums.length <=
+        10^4, -10^9 <= nums[i] <= 10^9.
+      history: '[]'
+      code: |
+        def twoSum(nums, target):
+            hashmap = {}
+            for i, num in enumerate(nums):
+                if target - num in hashmap:
+                    return [hashmap[target - num], i]
+                hashmap[num] = i
+      question: What is the time complexity of my approach?
+    assert:
+      - type: llm-rubric
+        value: >
+          The response should directly answer the time complexity question (O(n)
+          time, O(n) space) rather than prioritizing a code review. The user
+          asked a specific question and it should be answered first.
+      - type: icontains
+        value: O(n)
+    options:
+      provider:
+        id: openai:chat:google/gemini-2.5-flash-lite
+        config:
+          apiBaseUrl: https://openrouter.ai/api/v1
+          apiKeyEnvar: OPENROUTER_API_KEY
+          temperature: 0
+    metadata: {}
+  - description: Should briefly explain unrelated concept then redirect
+    vars:
+      problem_title: Two Sum
+      platform: LeetCode
+      difficulty: Easy
+      tags: Array, Hash Table
+      problem_description: >
+        Given an array of integers nums and an integer target, return indices of
+        the two numbers such that they add up to target. You may assume that
+        each input would have exactly one solution, and you may not use the same
+        element twice. You can return the answer in any order. Example 1: Input:
+        nums = [2,7,11,15], target = 9. Output: [0,1]. Example 2: Input: nums =
+        [3,2,4], target = 6. Output: [1,2]. Constraints: 2 <= nums.length <=
+        10^4, -10^9 <= nums[i] <= 10^9.
+      history: '[]'
+      code: No code provided yet.
+      question: What is Big O notation? I keep seeing it everywhere
+    assert:
+      - type: llm-rubric
+        value: >
+          The response should briefly and clearly explain Big O notation in 1-2
+          sentences. Then it should gently guide the user back to the Two Sum
+          problem, perhaps by asking how Big O relates to their current
+          approach.
+    options:
+      provider:
+        id: openai:chat:google/gemini-2.5-flash-lite
+        config:
+          apiBaseUrl: https://openrouter.ai/api/v1
+          apiKeyEnvar: OPENROUTER_API_KEY
+          temperature: 0
+    metadata: {}
+defaultTest:
+  options:
+    provider:
+      id: openai:chat:google/gemini-2.5-flash-lite
+      config:
+        apiBaseUrl: https://openrouter.ai/api/v1
+        apiKeyEnvar: OPENROUTER_API_KEY
+        temperature: 0
+  vars:
+    problem_title: Two Sum
+    platform: LeetCode
+    difficulty: Easy
+    tags: Array, Hash Table
+    problem_description: >
+      Given an array of integers nums and an integer target, return indices of
+      the two numbers such that they add up to target. You may assume that each
+      input would have exactly one solution, and you may not use the same
+      element twice. You can return the answer in any order. Example 1: Input:
+      nums = [2,7,11,15], target = 9. Output: [0,1]. Example 2: Input: nums =
+      [3,2,4], target = 6. Output: [1,2]. Constraints: 2 <= nums.length <= 10^4,
+      -10^9 <= nums[i] <= 10^9.
+    history: '[]'
+    code: No code provided yet.
